@@ -117,8 +117,29 @@ open — confirm with the user rather than assuming.
 ## Commands
 
 - Install: `npm install`
-- Dev server: `npm run dev` (http://localhost:5173)
+- Dev server: `npm run dev` — serves at **http://localhost:5173/AURA/**, not `/` (see `base` below)
 - Production build (runs `tsc -b` type-check, then Vite): `npm run build`
 - Preview the built output: `npm run preview`
 
 No test runner or linter is configured yet. `npm run build` is the type-check gate.
+
+## Deployment (GitHub Pages)
+
+Pushing to `main` triggers `.github/workflows/gh-pages.yml`, which runs `npm run build` and
+publishes via `upload-pages-artifact` + `deploy-pages`. Live at
+https://benjaminaronsson.github.io/AURA/.
+
+Three settings are coupled — changing one in isolation breaks the deploy:
+
+- `base: '/AURA/'` in `vite.config.ts` must match the repo name. It's a *project* Pages site, so
+  assets live under `/AURA/`. Without it Vite emits root-absolute `/assets/*` URLs and the
+  deployed page loads `index.html` but 404s every script and stylesheet — a blank screen.
+- `build.outDir: '_site'` matches the `upload-pages-artifact` default `path: _site/`. If you
+  rename it to `dist`, add an explicit `path:` to the upload step.
+- Despite the `_site` name this is **not** a Jekyll site. Jekyll never runs on the artifact, so
+  no `.nojekyll` file is needed and `jekyll-build-pages` must not be added back — it would
+  fight the Vite build over the same directory.
+
+To debug a broken deploy, compare what the HTML requests against what was actually published:
+`curl -s https://benjaminaronsson.github.io/AURA/ | grep assets`, then `curl -o /dev/null -w
+"%{http_code}"` that asset path.
