@@ -117,7 +117,7 @@ open — confirm with the user rather than assuming.
 ## Commands
 
 - Install: `npm install`
-- Dev server: `npm run dev` — serves at **http://localhost:5173/AURA/**, not `/` (see `base` below)
+- Dev server: `npm run dev` — serves at **http://localhost:5173/**
 - Production build (runs `tsc -b` type-check, then Vite): `npm run build`
 - Preview the built output: `npm run preview`
 
@@ -126,14 +126,17 @@ No test runner or linter is configured yet. `npm run build` is the type-check ga
 ## Deployment (GitHub Pages)
 
 Pushing to `main` triggers `.github/workflows/gh-pages.yml`, which runs `npm run build` and
-publishes via `upload-pages-artifact` + `deploy-pages`. Live at
-https://benjaminaronsson.github.io/AURA/.
+publishes via `upload-pages-artifact` + `deploy-pages`. Live at **https://aura-secure.se/** — a
+custom apex domain set in the repo's Pages settings. GitHub redirects the old project URL
+https://benjaminaronsson.github.io/AURA/ to it.
 
 Three settings are coupled — changing one in isolation breaks the deploy:
 
-- `base: '/AURA/'` in `vite.config.ts` must match the repo name. It's a *project* Pages site, so
-  assets live under `/AURA/`. Without it Vite emits root-absolute `/assets/*` URLs and the
-  deployed page loads `index.html` but 404s every script and stylesheet — a blank screen.
+- `base: '/'` in `vite.config.ts` must match how the site is *served*, not the repo name. On the
+  custom domain the site is the domain root, so assets live at `/assets/*`. This was `'/AURA/'`
+  while it was a project Pages site; leaving it that way after the domain switch makes the
+  deployed page load `index.html` but 404 every script and stylesheet — a blank screen. The
+  custom domain lives in Pages settings, not a `CNAME` file in the artifact.
 - `build.outDir: '_site'` matches the `upload-pages-artifact` default `path: _site/`. If you
   rename it to `dist`, add an explicit `path:` to the upload step.
 - Despite the `_site` name this is **not** a Jekyll site. Jekyll never runs on the artifact, so
@@ -141,5 +144,5 @@ Three settings are coupled — changing one in isolation breaks the deploy:
   fight the Vite build over the same directory.
 
 To debug a broken deploy, compare what the HTML requests against what was actually published:
-`curl -s https://benjaminaronsson.github.io/AURA/ | grep assets`, then `curl -o /dev/null -w
+`curl -s https://aura-secure.se/ | grep assets`, then `curl -o /dev/null -w
 "%{http_code}"` that asset path.
