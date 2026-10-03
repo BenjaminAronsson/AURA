@@ -59,7 +59,10 @@ export function LoginScreen({ onAuthenticate }: Props) {
             <input
               type="text"
               autoComplete="off"
+              autoCapitalize="characters"
+              autoCorrect="off"
               spellCheck={false}
+              enterKeyHint="next"
               value={operator}
               placeholder={LOGIN.operatorPlaceholder}
               disabled={status === 'working'}
@@ -75,7 +78,10 @@ export function LoginScreen({ onAuthenticate }: Props) {
             <input
               type="text"
               autoComplete="off"
+              autoCapitalize="characters"
+              autoCorrect="off"
               spellCheck={false}
+              enterKeyHint="go"
               value={code}
               placeholder={LOGIN.codePlaceholder}
               disabled={status === 'working'}

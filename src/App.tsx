@@ -5,10 +5,12 @@ import { LoginScreen } from './components/LoginScreen'
 import { ActivationScreen } from './components/ActivationScreen'
 import { EndScreen } from './components/EndScreen'
 import { useGame } from './game/useGame'
+import { useViewportHeight } from './useViewportHeight'
 
 export default function App() {
   const game = useGame()
   const [confirmReset, setConfirmReset] = useState(false)
+  useViewportHeight()
 
   function handleReset() {
     if (confirmReset) {

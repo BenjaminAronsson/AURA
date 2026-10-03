@@ -9,16 +9,33 @@
   --line: #163020;
   --glow: 0 0 6px rgba(53, 255, 138, 0.35);
   --mono: 'SFMono-Regular', 'DejaVu Sans Mono', 'Consolas', 'Liberation Mono', Menlo, monospace;
+
+  /* Visible viewport height. Falls back through dvh (modern mobile, handles the
+     URL bar) to vh; useViewportHeight() overwrites it with a visualViewport
+     pixel value, which is the only thing that tracks the iOS keyboard. */
+  --app-height: 100vh;
+
+  /* Notch / home-indicator padding, zero on everything else. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+
+@supports (height: 100dvh) {
+  :root { --app-height: 100dvh; }
 }
 
 * {
   box-sizing: border-box;
+  /* No blue flash when tapping the terminal body to focus it. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body,
 #root {
-  height: 100%;
+  height: var(--app-height);
   margin: 0;
 }
 
@@ -29,14 +46,18 @@ body {
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  /* The app shell owns its own scrolling; never rubber-band the document, or
+     the fixed CRT overlays detach from the content underneath them. */
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .app {
   position: relative;
-  min-height: 100%;
-  height: 100%;
+  height: var(--app-height);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* ---------- Overlays: scanlines + faint flicker ---------- */
@@ -103,6 +124,27 @@ body {
   to { opacity: 1; transform: none; }
 }
 
+/* The three centred screens (login / activation / end) must stay reachable when
+   they outgrow a short viewport — a landscape phone, or any phone with the
+   keyboard open. `margin: auto` on the inner block centres like
+   `justify-content: center` but degrades to top-aligned-and-scrollable instead
+   of clipping the top out of reach. */
+.login,
+.activation,
+.end {
+  align-items: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(24px + var(--safe-t)) calc(24px + var(--safe-r))
+           calc(24px + var(--safe-b)) calc(24px + var(--safe-l));
+}
+.login-card,
+.activation-inner,
+.end-inner {
+  margin-block: auto;
+}
+
 /* ---------- Line kinds (shared) ---------- */
 .line {
   min-height: 1.55em;
@@ -118,11 +160,6 @@ body {
 /* ============================================================
    LOGIN
    ============================================================ */
-.login {
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
 .login-card {
   width: 100%;
   max-width: 560px;
@@ -199,7 +236,10 @@ body {
   cursor: pointer;
   transition: filter 0.15s, opacity 0.15s;
 }
-.login-btn:hover { filter: brightness(1.15); }
+/* Hover-only so a tap on touch doesn't leave the button stuck in hover state. */
+@media (hover: hover) {
+  .login-btn:hover { filter: brightness(1.15); }
+}
 .login-btn:disabled { opacity: 0.6; cursor: default; }
 .login-status {
   min-height: 1.4em;
@@ -222,11 +262,6 @@ body {
 /* ============================================================
    ACTIVATION
    ============================================================ */
-.activation {
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
 .activation-inner {
   width: 100%;
   max-width: 680px;
@@ -237,11 +272,6 @@ body {
 /* ============================================================
    END / VICTORY
    ============================================================ */
-.end {
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
 .end-inner {
   width: 100%;
   max-width: 680px;
@@ -309,13 +339,14 @@ body {
   max-width: 1000px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 clamp(8px, 3vw, 28px);
+  padding-left: calc(clamp(8px, 3vw, 28px) + var(--safe-l));
+  padding-right: calc(clamp(8px, 3vw, 28px) + var(--safe-r));
 }
 .topbar {
   display: flex;
   align-items: baseline;
   gap: 14px;
-  padding: 14px 2px 10px;
+  padding: calc(14px + var(--safe-t)) 2px 10px;
   border-bottom: 1px solid var(--line);
 }
 .brand {
@@ -344,7 +375,9 @@ body {
   cursor: pointer;
   transition: all 0.15s;
 }
-.reset-btn:hover { color: var(--red); border-color: var(--red); }
+@media (hover: hover) {
+  .reset-btn:hover { color: var(--red); border-color: var(--red); }
+}
 
 .statusbar {
   display: flex;
@@ -366,13 +399,15 @@ body {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 14px 2px 18px;
+  padding: 14px 2px calc(18px + var(--safe-b));
   cursor: text;
 }
 .terminal-log {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-right: 6px;
 }
 .terminal-log::-webkit-scrollbar { width: 8px; }
@@ -400,3 +435,79 @@ body {
 }
 .terminal-input input::placeholder { color: var(--fg-dim); opacity: 0.6; letter-spacing: 0.1em; }
 .terminal-input input:disabled { color: var(--red); }
+
+/* ============================================================
+   TOUCH DEVICES
+   Same look, fingers-instead-of-mouse ergonomics.
+   ============================================================ */
+@media (pointer: coarse) {
+  /* Below 16px, iOS Safari zooms the whole page in on focus and never zooms
+     back out — the single most disruptive mobile bug in a form like this. */
+  .field input,
+  .terminal-input input {
+    font-size: 16px;
+  }
+
+  /* Bring tap targets up to ~44px without changing how they read. */
+  .reset-btn { padding: 11px 14px; }
+  .login-btn { padding: 15px; }
+  .terminal-input { padding-top: 14px; }
+  .terminal-input input { padding: 6px 0; }
+  .field input { padding: 13px 12px; }
+}
+
+/* ============================================================
+   NARROW SCREENS (phones)
+   Only the heavily letter-spaced chrome needs to give — body copy wraps fine.
+   ============================================================ */
+@media (max-width: 720px) {
+  .login,
+  .activation,
+  .end {
+    padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r))
+             calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+  }
+  .login-card { padding: 20px 18px 22px; }
+  .login-intro { min-height: 150px; }
+
+  /* A tall narrow viewport pulls the vignette in far enough to dim the text. */
+  .scanlines::after {
+    background: radial-gradient(ellipse at center, transparent 72%, rgba(0, 0, 0, 0.55) 100%);
+  }
+
+  .topbar { gap: 10px; }
+  .brand-sub { font-size: 9px; letter-spacing: 0.1em; }
+  .statusbar { gap: 8px 16px; font-size: 10px; letter-spacing: 0.08em; }
+
+  .end-title { letter-spacing: 0.3em; padding-left: 0.3em; }
+  .end-status { font-size: clamp(34px, 13vw, 76px); letter-spacing: 0.05em; }
+  .end-sub { font-size: 10px; letter-spacing: 0.1em; }
+  .end-won { letter-spacing: 0.22em; padding-left: 0.22em; }
+  .end-btn { width: 100%; min-width: 0; }
+}
+
+/* Smallest phones: the subtitle can't survive at any legible size. */
+@media (max-width: 420px) {
+  .brand-sub { display: none; }
+  .brand { letter-spacing: 0.3em; }
+}
+
+/* Landscape phones, and anything with the keyboard eating the viewport. */
+@media (max-height: 520px) {
+  .login-intro { min-height: 96px; }
+  .login-card { padding: 16px 18px 18px; }
+  .login-form { gap: 10px; }
+}
+
+/* ============================================================
+   REDUCED MOTION
+   Drop the ambient animation; keep the cursor blink, which is functional.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .flicker { animation: none; opacity: 0.4; }
+  .screen { animation: none; }
+  .shake { animation: none; }
+  .end-status { animation: none; }
+  .login-form,
+  .end-banner { transition: none; }
+}

@@ -18,6 +18,13 @@ export function Terminal({ log, onSubmit, disabled, typeFromStart }: TerminalPro
 
   const locked = Boolean(disabled) || typing
 
+  // On touch devices, grabbing focus unprompted throws up the on-screen
+  // keyboard over half the screen before the player has read anything. Wait
+  // for a deliberate tap there; on mouse/keyboard, focus immediately as before.
+  const autoFocuses = useRef(
+    typeof window === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches,
+  )
+
   // Auto-scroll to newest output as it types.
   useEffect(() => {
     const el = scrollRef.current
@@ -26,11 +33,13 @@ export function Terminal({ log, onSubmit, disabled, typeFromStart }: TerminalPro
 
   // Reclaim focus whenever input unlocks.
   useEffect(() => {
-    if (!locked) inputRef.current?.focus()
+    if (!locked && autoFocuses.current) inputRef.current?.focus()
   }, [locked])
 
   function send() {
     if (locked) return
+    // Mid-conversation now: keep the keyboard up between answers on mobile.
+    autoFocuses.current = true
     const v = value
     setValue('')
     onSubmit(v)
@@ -45,7 +54,16 @@ export function Terminal({ log, onSubmit, disabled, typeFromStart }: TerminalPro
 
   function handleAreaClick() {
     if (typing) skip()
-    else inputRef.current?.focus()
+    else {
+      autoFocuses.current = true
+      inputRef.current?.focus()
+    }
+  }
+
+  // The keyboard opening shrinks the visible area; keep the newest line in view.
+  function handleFocus() {
+    const el = scrollRef.current
+    if (el) window.setTimeout(() => { el.scrollTop = el.scrollHeight }, 300)
   }
 
   const placeholder = disabled ? 'SESSION TERMINATED' : typing ? '' : 'ENTER RESPONSE'
@@ -64,16 +82,18 @@ export function Terminal({ log, onSubmit, disabled, typeFromStart }: TerminalPro
         <span className="prompt-glyph">{disabled ? '×' : typing ? '…' : '>'}</span>
         <input
           ref={inputRef}
-          autoFocus
           type="text"
           autoComplete="off"
           autoCapitalize="off"
+          autoCorrect="off"
           spellCheck={false}
+          enterKeyHint="send"
           value={value}
           disabled={locked}
           placeholder={placeholder}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={handleFocus}
           aria-label="terminal input"
         />
       </form>
