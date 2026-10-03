@@ -11,7 +11,9 @@ the room owns the clues and the narrative.
 Because every gate needs information that only exists off-screen, one person at the keyboard
 cannot finish the game alone.
 
-**Live:** https://benjaminaronsson.github.io/AURA/
+**Live:** https://aura-secure.se/
+
+Built for phones as much as desktop — the room's players will mostly be holding one.
 
 > [spec.md](spec.md) is the authoritative design document and contains full spoilers, including
 > the game's concealed narrative. Don't hand it to players.
@@ -26,11 +28,8 @@ left off.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173/AURA/
+npm run dev      # http://localhost:5173/
 ```
-
-Note the `/AURA/` path — the app sets a Vite `base` so it can deploy to GitHub Pages, and the
-dev server honours it too. The bare root will 404.
 
 ```bash
 npm run build    # type-check (tsc -b) + production build into _site/
@@ -68,8 +67,9 @@ Supporting code:
 | `src/game/engine.ts` | Pure logic: answer normalisation and matching, step progression, access levels |
 | `src/game/useGame.ts` | The game hook: phase, input routing, persistence |
 | `src/game/useTypewriter.ts` | Movie-style typing effect, with click-to-skip |
+| `src/useViewportHeight.ts` | Mirrors the visual viewport into `--app-height` so the mobile keyboard can't cover the input |
 | `src/components/` | Screens: login, activation, terminal, end, status bar |
-| `src/styles.css` | The whole CRT/terminal theme |
+| `src/styles.css` | The whole CRT/terminal theme, including the responsive and touch rules |
 
 ### A note on voice
 
@@ -82,8 +82,9 @@ things, or reveals a correct answer after a wrong submission. Keep new copy in t
 Pushing to `main` builds and publishes to GitHub Pages via
 [`.github/workflows/gh-pages.yml`](.github/workflows/gh-pages.yml).
 
-The Vite config sets `base: '/AURA/'` and `outDir: '_site'`. The `base` must match the repository
-name: this is a project Pages site served from a subpath, and without it the deployed page loads
-but every asset 404s. The `_site` output directory matches the default the Pages upload action
-looks for — rename it only alongside an explicit `path:` on that step. Despite the directory name
-this is not a Jekyll site.
+The Vite config sets `base: '/'` and `outDir: '_site'`. The `base` must match how the site is
+*served*: it's on a custom apex domain, so the site is the domain root. (It was `'/AURA/'` back
+when this was a project Pages site at a `/AURA/` subpath — a mismatched `base` makes the deployed
+page load `index.html` but 404 every script and stylesheet.) The `_site` output directory matches
+the default the Pages upload action looks for — rename it only alongside an explicit `path:` on
+that step. Despite the directory name this is not a Jekyll site.

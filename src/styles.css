@@ -448,9 +448,20 @@ body {
     font-size: 16px;
   }
 
-  /* Bring tap targets up to ~44px without changing how they read. */
-  .reset-btn { padding: 11px 14px; }
-  .login-btn { padding: 15px; }
+  /* Bring tap targets up to 44px. The primary buttons can simply grow, but
+     RESET has to stay a small piece of chrome in the header — give it an
+     invisible 44px-tall hit area instead of inflating the visible box. */
+  .reset-btn { position: relative; padding: 6px 12px; }
+  .reset-btn::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+  .login-btn { min-height: 44px; padding: 15px; }
   .terminal-input { padding-top: 14px; }
   .terminal-input input { padding: 6px 0; }
   .field input { padding: 13px 12px; }

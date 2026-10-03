@@ -43,8 +43,26 @@ saved `stepIndex`):
 - `src/components/` — `TypedBlock` (types a fixed sequence, used by login/activation),
   `LoginScreen`, `ActivationScreen`, `Terminal` (typewriter log + input, submit on Enter,
   input locked while typing), `StatusBar`.
+- `src/useViewportHeight.ts` — mirrors `visualViewport` into the `--app-height` custom property.
+  `100%`/`100vh`/`100dvh` all fail to account for the iOS keyboard, which would leave the
+  terminal's bottom-anchored input underneath it.
 - `src/styles.css` — the whole security-terminal theme (CRT scanlines, flicker, blinking cursor,
-  login card, screen transitions, amber/green palette).
+  login card, screen transitions, amber/green palette), plus the responsive layer at the bottom.
+
+## Mobile
+
+The page is played on phones, so treat these as invariants rather than polish:
+
+- **Inputs must be ≥16px on touch** (`@media (pointer: coarse)`). Below that, iOS Safari zooms
+  the page on focus and never zooms back out.
+- **Height comes from `--app-height`**, never `100vh`. See `useViewportHeight.ts` above.
+- **`body` doesn't scroll** — the app shell is fixed-height and `.terminal-log` scrolls
+  internally. The centred screens (login/activation/end) scroll themselves and centre via
+  `margin-block: auto`, which degrades to top-aligned instead of clipping on short viewports.
+- **Answer fields need `autoCorrect`/`autoCapitalize` off**; iOS autocorrect will silently
+  rewrite a puzzle answer on submit.
+- Keep taps ≥44px. For small chrome like RESET, use an invisible `::after` hit area rather than
+  inflating the visible control.
 
 ## What AURA is
 
