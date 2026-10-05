@@ -2,13 +2,44 @@
  * AURA — GAME CONTENT (single source of truth)
  * ============================================
  * Everything puzzle-, voice-, and screen-copy-related lives here so content
- * can be edited without touching engine/UI logic. All answers are PLACEHOLDER
- * values seeded to match the spec's story (Elias Voss, office lockdown).
- * Replace `accept` values with the real physical-puzzle answers for your room.
+ * can be edited without touching engine/UI logic. These are the REAL answers
+ * for "The Breach" four-step sequence (operator: Elias Norberg), per
+ * AURA_Four_Step_Game_Logic.md.
  *
  * Matching is case-insensitive and whitespace-insensitive (see engine.normalize).
  * A step is solved when the player's input matches ANY string in `accept`.
+ * Answer variants (e.g. "HONDA NSX" / "HONDANSX") are supported by listing both
+ * forms in `accept`.
  */
+
+/* ------------------------------------------------------------------ */
+/* Admin-configurable values                                          */
+/* ------------------------------------------------------------------ */
+
+export const CONFIG = {
+  /** Step-3 → Step-4 countdown duration, in seconds (default 15:00). */
+  countdownSeconds: 15 * 60,
+  /**
+   * Step-4 "unauthorized transfer" drama. The progress bar and the account
+   * drain both follow an accelerating curve of elapsed time: fraction^exponent,
+   * so they move slowly at first and rush toward 100% / zero as the clock nears
+   * 00:00. Account balances are deliberately decoys — they do NOT sum to the
+   * final transfer amount, which stays [REDACTED] until the end screen.
+   */
+  transfer: {
+    /** >1 makes the bar fill faster the closer the timer gets to zero. */
+    curveExponent: 2.6,
+    accounts: [
+      { label: 'SE44 8301 •••• 4471', balance: 1_240_880 },
+      { label: 'SE09 1200 •••• 7732', balance: 842_410 },
+      { label: 'SE71 6002 •••• 1098', balance: 318_650 },
+      { label: 'SE23 5000 •••• 9284', balance: 96_220 },
+    ],
+  },
+}
+
+/** In-fiction current date; all historical timestamps use Europe/Stockholm. */
+export const GAME_DATE = '2026-10-22'
 
 export interface Step {
   /** Stable id, unique across all steps. */
@@ -22,8 +53,17 @@ export interface Step {
   prompt: string
   /** All acceptable answers (normalized before compare). */
   accept: string[]
-  /** Terse confirmation line shown on success (AURA voice). */
-  onSuccess: string
+  /** Confirmation line(s) shown on success (AURA voice). */
+  onSuccess: string[]
+  /** Rejection line shown on a generic wrong answer (defaults to engine generic). */
+  onReject?: string
+  /**
+   * Special wrong-answer responses — checked before the generic rejection.
+   * Powers Step 4's deliberate `AURA1` old-code trap. Does NOT advance.
+   */
+  rejections?: { match: string[]; lines: string[] }[]
+  /** Clearing this step starts the financial-transfer countdown. */
+  startsCountdown?: boolean
   /** Access level granted once this step is cleared (optional). */
   accessLevel?: number
   /**
@@ -50,7 +90,7 @@ export interface FreeTextRule {
 }
 
 /* ------------------------------------------------------------------ */
-/* LOGIN SCREEN — authorization credentials                           */
+/* LOGIN SCREEN — Step 1: operator authentication                     */
 /* ------------------------------------------------------------------ */
 
 export const LOGIN = {
@@ -60,43 +100,48 @@ export const LOGIN = {
     'ADAPTIVE UNIFIED RESPONSE ARCHITECTURE',
     '',
     'FACILITY STATUS: LOCKDOWN',
-    'ADMINISTRATOR: ELIAS VOSS — MISSING',
+    'OPERATOR OF RECORD: ELIAS NORBERG — SECURITY ARCHITECT',
     'AURA CORE: DORMANT',
     '',
-    'A system this quiet is a system that is hiding something.',
-    'Authorization is required to bring me back online.',
+    'The last operator session ended without a clean shutdown.',
+    'Operator credentials are required to bring me back online.',
   ],
-  operatorLabel: 'OPERATOR ID',
-  operatorPlaceholder: 'identify yourself',
-  codeLabel: 'ADMINISTRATOR ACCESS CODE',
-  codePlaceholder: 'enter access code',
+  operatorLabel: 'USER ID',
+  operatorPlaceholder: 'operator user id',
+  codeLabel: 'ACTIVATION KEY',
+  codePlaceholder: 'enter activation key',
   submit: 'AUTHENTICATE',
   working: 'VERIFYING ...',
-  denied: 'ACCESS DENIED — INVALID CREDENTIALS.',
-  /** The step id whose `accept` validates the access code (stage 1, step 1). */
-  codeStepId: 'auth.code',
+  denied: 'AUTHENTICATION FAILED — INVALID OPERATOR CREDENTIALS.',
+  /** Accepted User ID values (normalized before compare). */
+  userIdAccept: ['ELNOR0417'],
+  /** Accepted Activation Key values (normalized before compare). */
+  keyAccept: ['ORION-17-NX'],
 }
 
 /* ------------------------------------------------------------------ */
-/* ACTIVATION / "AURA OPERATING AGAIN" sequence                       */
+/* ACTIVATION — Step 1 success + "AURA operating again" sequence       */
 /* ------------------------------------------------------------------ */
 
-export function buildActivationLines(operatorId: string): string[] {
-  const op = operatorId.trim() ? operatorId.trim().toUpperCase() : 'UNREGISTERED'
+export function buildActivationLines(_operatorId: string): string[] {
   return [
+    'OPERATOR AUTHENTICATED',
+    '',
+    'ELIAS NORBERG',
+    'SECURITY ARCHITECT',
+    '',
     'ACCESS GRANTED.',
     'RE-ESTABLISHING SECURE SESSION ...',
     '',
     'REACTIVATING AURA CORE .............. OK',
     'RESTORING SECURITY MODULES .......... OK',
-    'REBUILDING INCIDENT INDEX ........... OK',
-    'DECRYPTING FOOTAGE ARCHIVE .......... OK',
+    'REBUILDING OPERATOR INDEX ........... OK',
     'RE-ENABLING OPERATOR INTERFACE ...... OK',
     '',
     'AURA IS ONLINE.',
-    `WELCOME BACK, OPERATOR ${op}.`,
-    'I have been dark for some time. Someone wanted me that way.',
-    'Let us find out why.',
+    'WELCOME BACK, ELIAS.',
+    '',
+    'Secondary identity verification required.',
   ]
 }
 
@@ -110,169 +155,169 @@ export const BOOT_LINES: string[] = [
 ]
 
 /* ------------------------------------------------------------------ */
-/* Stages (5) — placeholder answers, edit freely                      */
+/* Stages — the four-step sequence                                    */
+/* Flat-step index 0 is handled by the LOGIN screen; the terminal     */
+/* drives everything from index 1 onward.                             */
 /* ------------------------------------------------------------------ */
 
 export const STAGES: Stage[] = [
   {
     id: 'auth',
     title: 'AUTHENTICATION',
-    intro: ['[STAGE 1] INITIAL AUTHENTICATION'],
+    intro: ['[STEP 1] OPERATOR AUTHENTICATION'],
     steps: [
       {
-        id: 'auth.code',
-        prompt: 'ENTER ADMINISTRATOR ACCESS CODE:',
-        accept: ['VOSS-7731', '7731'],
-        onSuccess: 'AUTHENTICATION SUCCESSFUL.',
+        // Validated by the LOGIN screen (User ID + Activation Key). This step
+        // exists so flat-step index 0 maps to login; it is never shown in the
+        // terminal. `accept` mirrors the activation key for completeness.
+        id: 'auth.login',
+        prompt: 'ENTER OPERATOR CREDENTIALS:',
+        accept: ['ORION-17-NX'],
+        onSuccess: ['OPERATOR AUTHENTICATED.'],
         accessLevel: 1,
-        hint: 'Administrator credentials are issued on physical identification media.',
+        hint: 'Operator credentials are reconstructed from physical clues across the rooms.',
       },
     ],
   },
   {
-    id: 'investigation',
-    title: 'INVESTIGATION',
+    id: 'identity',
+    title: 'IDENTITY VERIFICATION',
     intro: [
-      '[STAGE 2] INVESTIGATION',
-      'SECURITY FOOTAGE MODULE: AVAILABLE',
-      'Incident log recovered. Three events flagged on the disappearance timeline.',
-      '  18:03 — SERVER ROOM',
-      '  18:17 — DEVELOPER OFFICE',
-      '  18:31 — MAIN ENTRANCE',
+      '[STEP 2] IDENTITY VERIFICATION',
+      'Three personal security questions must be answered to confirm operator identity.',
     ],
     steps: [
       {
-        id: 'inv.incident',
-        preamble: [
-          'The footage survived the wipe. Three fragments are all that remain of the night Elias vanished.',
-          'Tell me which moment to open, and I will show you what I still hold.',
-        ],
-        prompt: 'ENTER THE TIMESTAMP OF THE INCIDENT TO REVIEW (HH:MM):',
-        accept: ['18:17', '1817'],
-        onSuccess: 'FOOTAGE REFERENCE RELEASED. SEE PRINTED EVIDENCE PACKET 02.',
+        id: 'id.q1',
+        prompt: 'SECURITY QUESTION 1 — What is your daughter’s first name?',
+        accept: ['ALMA'],
+        onSuccess: ['IDENTITY RESPONSE VERIFIED'],
+        onReject: 'IDENTITY RESPONSE REJECTED',
+        hint: 'A personal detail only Elias would know. The room remembers her.',
+      },
+      {
+        id: 'id.q2',
+        prompt: 'SECURITY QUESTION 2 — What is your dream car?',
+        accept: ['HONDANSX', 'HONDA NSX'],
+        onSuccess: ['IDENTITY RESPONSE VERIFIED'],
+        onReject: 'IDENTITY RESPONSE REJECTED',
+        hint: 'A make and a model. Elias talked about it often.',
+      },
+      {
+        id: 'id.q3',
+        prompt: 'SECURITY QUESTION 3 — What is your favourite drink?',
+        accept: ['REDBULL', 'RED BULL'],
+        onSuccess: ['IDENTITY RESPONSE VERIFIED'],
+        onReject: 'IDENTITY RESPONSE REJECTED',
         accessLevel: 2,
-        hint: 'The administrator was last seen in his own office.',
-      },
-      {
-        id: 'inv.name',
-        preamble: [
-          'He was not alone in that room.',
-          'Give me the name of the person standing with him, and I will pull their file.',
-        ],
-        prompt: 'ENTER THE NAME OF THE INDIVIDUAL RECORDED WITH THE ADMINISTRATOR:',
-        accept: ['MARA KEEN', 'KEEN', 'MARA'],
-        onSuccess: 'IDENTITY CONFIRMED. CROSS-REFERENCING PERSONNEL RECORDS.',
-        hint: 'A second figure appears in the released footage packet. Cross-check faces against the personnel wall.',
+        hint: 'What kept Elias working through the night.',
       },
     ],
   },
   {
-    id: 'system',
-    title: 'SYSTEM INVESTIGATION',
+    id: 'continuity',
+    title: 'CONTINUITY RECOVERY',
     intro: [
-      '[STAGE 3] SYSTEM INVESTIGATION',
-      'Anomalous hardware detected on administrator terminal during incident window.',
+      'IDENTITY VERIFIED',
+      '',
+      'E. NORBERG',
+      '',
+      'Previous operator session detected.',
+      'Continuity recovery required.',
+      '',
+      '[STEP 3] CONTINUITY RECOVERY',
+      'INTERRUPTED SESSION DETECTED',
     ],
     steps: [
       {
-        id: 'sys.device',
+        id: 'cont.token',
         preamble: [
-          'Something was connected to his terminal that night. It should never have been there.',
-          'Read me the serial from the device your team recovered.',
+          'Your last session was interrupted before it could close.',
+          'Enter the legacy operator token to restore it.',
         ],
-        prompt: 'ENTER THE SERIAL NUMBER OF THE DEVICE CONNECTED TO THE TERMINAL:',
-        accept: ['SN-4420-X', '4420X', '4420'],
-        onSuccess: 'DEVICE IDENTIFIED: UNREGISTERED MASS-STORAGE UNIT.',
+        prompt: 'LEGACY OPERATOR TOKEN:  [ _ ] [ _ ] [ _ ] [ _ ]',
+        accept: ['7314'],
+        onSuccess: [
+          'CONTINUITY TOKEN ACCEPTED',
+          '',
+          'Restoring interrupted operator session...',
+          'INTERRUPTED SEQUENCE RESUMED',
+          '',
+          'WARNING',
+          '',
+          'UNAUTHORIZED FINANCIAL TRANSFER ACTIVE',
+          'CORPORATE ACCOUNTS COMPROMISED',
+          '',
+          'FULL TRANSFER VALUE: [REDACTED]',
+        ],
+        onReject: 'CONTINUITY TOKEN REJECTED',
+        startsCountdown: true,
         accessLevel: 3,
-        hint: 'The serial is etched on the physical device recovered from the office.',
-      },
-      {
-        id: 'sys.order',
-        preamble: [
-          'The order of events matters more than you think. It tells us what he was reaching for.',
-          'Which room woke first — server, office, or entrance?',
-        ],
-        prompt: 'WHICH EVENT OCCURRED FIRST — SERVER ROOM, OFFICE, OR ENTRANCE?',
-        accept: ['SERVER ROOM', 'SERVER', 'SERVERROOM'],
-        onSuccess: 'SEQUENCE VERIFIED. DATA EXFILTRATION PATTERN FLAGGED.',
+        hint: 'Four digits Elias wrote without thinking — the same ones, again and again.',
       },
     ],
   },
   {
-    id: 'containment',
-    title: 'CONTAINMENT',
+    id: 'override',
+    title: 'MANUAL OVERRIDE',
     intro: [
-      '[STAGE 4] SECURITY INCIDENT / CONTAINMENT',
-      'WARNING: CONFIDENTIAL DATASET INTEGRITY COMPROMISED.',
+      '[STEP 4] MANUAL OVERRIDE',
+      'CRITICAL FINANCIAL EVENT',
+      'TRANSFER ACTIVE',
+      'MANUAL MASTER CODE REQUIRED',
     ],
     steps: [
       {
-        id: 'cont.employee',
+        id: 'ovr.master',
         preamble: [
-          'This stopped being about one missing man a while ago. The data is bleeding out of the building.',
-          'I need to know who signed for it. Enter the employee identifier from the recovered document.',
+          'The transfer is live. Only the current master code will stop it.',
         ],
-        prompt: 'ENTER THE EMPLOYEE IDENTIFIER FOUND IN THE RECOVERED DOCUMENT:',
-        accept: ['EMP-0092', '0092', '92'],
-        onSuccess: 'IDENTIFIER VERIFIED.',
+        prompt: 'ENTER MANUAL MASTER CODE:',
+        accept: ['ABORTAURA', 'ABORT AURA'],
+        onSuccess: ['MASTER OVERRIDE ACCEPTED'],
+        onReject: 'MASTER CODE REJECTED',
+        rejections: [
+          {
+            match: ['AURA1'],
+            lines: [
+              'CODE REJECTED',
+              '',
+              'This master code is no longer valid.',
+              '',
+              'Password changed 204 days ago.',
+              'Last modification: 2026-04-01.',
+              '',
+              'Current master code required.',
+            ],
+          },
+        ],
         accessLevel: 4,
-        hint: 'Employee identifiers appear in the header of internal personnel documents.',
-      },
-      {
-        id: 'cont.procedure',
-        preamble: [
-          'If we do not seal this now, everything he was protecting walks out the door.',
-          'Give me the containment procedure and I can start closing the breach.',
-        ],
-        prompt: 'ENTER CONTAINMENT PROCEDURE CODE:',
-        accept: ['QUARANTINE-DELTA', 'DELTA', 'Q-DELTA'],
-        onSuccess: 'CONTAINMENT PROCEDURE ACCEPTED. CORE ACCESS UNSEALED.',
-      },
-    ],
-  },
-  {
-    id: 'shutdown',
-    title: 'AURA CORE',
-    intro: [
-      '[STAGE 5] FINAL SHUTDOWN',
-      'AURA CORE',
-    ],
-    steps: [
-      {
-        id: 'core.override',
-        preamble: [
-          'You have come further than anyone they expected.',
-          'Everything you have found comes down to this one instruction.',
-          'Assemble the full override, and I will take myself offline.',
-        ],
-        prompt: 'ENTER FULL OVERRIDE CREDENTIAL (ADMIN / ROOT / CONTAINMENT):',
-        accept: ['VOSS-7731 / SN-4420-X / QUARANTINE-DELTA', '7731 4420 DELTA', 'VOSS ROOT DELTA'],
-        onSuccess: 'OVERRIDE ACCEPTED.',
-        accessLevel: 5,
-        hint: 'Combine the administrator code, the device serial, and the containment code.',
+        hint: 'The emergency command, joined to the system name. The desk note is out of date.',
       },
     ],
   },
 ]
 
 /**
- * END SCREEN — typed shutdown sequence, then the victory declaration.
- * Triggered when the final step (stage 5) is cleared.
+ * END SCREEN — typed shutdown sequence, then the recovered-transaction reveal.
+ * Triggered when the final step (Step 4) is cleared.
  */
-export function buildEndingLines(operatorId: string): string[] {
-  const op = operatorId.trim() ? operatorId.trim().toUpperCase() : 'OPERATOR'
+export function buildEndingLines(_operatorId: string): string[] {
   return [
-    'OVERRIDE ACCEPTED.',
-    'ROOT AUTHORIZATION CONFIRMED.',
-    'CONTAINMENT CONFIRMED.',
+    'MASTER OVERRIDE ACCEPTED',
     '',
-    'INITIATING CORE SHUTDOWN ...',
+    'TRANSFER ABORTED',
+    'AURA EMERGENCY SHUTDOWN INITIATED',
+    '',
     'PURGING ACTIVE SESSIONS ............ OK',
     'SEALING EXTERNAL TRANSFER NODE ..... OK',
     'REVOKING UNAUTHORIZED BUYER ACCESS . OK',
     '',
-    `The data never left the building, ${op}.`,
-    'Thank you for coming back for me.',
+    'RECOVERED TRANSACTION DATA',
+    '',
+    'FULL TRANSFER AMOUNT:',
+    '2 850 000 SEK',
+    '',
     'AURA CORE OFFLINE.',
   ]
 }
@@ -282,7 +327,7 @@ export const END_BANNER = {
   title: 'THE BREACH',
   status: 'SECURED',
   lines: [
-    'THREAT CONTAINED · CONFIDENTIAL DATA SALE STOPPED',
+    'TRANSFER ABORTED · 2 850 000 SEK RECOVERED',
     'FACILITY LOCKDOWN RELEASED',
   ],
   won: 'GAME WON',
@@ -305,10 +350,10 @@ export const FREE_TEXT: FreeTextRule[] = [
     response: 'MODULES SEALED PENDING VERIFICATION. CURRENT CLEARANCE INSUFFICIENT FOR UNLISTED MODULES.',
   },
   {
-    match: ['administrator', 'elias', 'voss', 'what happened', 'developer', 'missing'],
+    match: ['elias', 'norberg', 'operator', 'what happened', 'architect'],
     response:
-      'ADMINISTRATOR ELIAS VOSS — STATUS: MISSING. He installed me, then he was gone. ' +
-      'INCIDENT DETAILS AVAILABLE THROUGH THE VERIFIED FOOTAGE MODULE ONLY.',
+      'OPERATOR OF RECORD: ELIAS NORBERG — SECURITY ARCHITECT. ' +
+      'His final session ended without a clean shutdown. CONTINUITY RECOVERY PENDING.',
   },
   {
     match: ['who are you', 'what are you', 'aura'],
@@ -319,7 +364,7 @@ export const FREE_TEXT: FreeTextRule[] = [
     response: 'I am listening. Submit the requested value when your team is ready.',
   },
   {
-    match: ['trust', 'lying', 'lie', 'safe', 'honest'],
+    match: ['trust', 'lying', 'lie', 'safe', 'honest', 'transfer', 'money'],
     // Subtle, in-voice; does not spoil the hidden narrative.
     response: 'I operate within defined security parameters. QUERY LOGGED.',
   },

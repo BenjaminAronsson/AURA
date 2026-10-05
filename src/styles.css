@@ -379,6 +379,23 @@ body {
   .reset-btn:hover { color: var(--red); border-color: var(--red); }
 }
 
+.mute-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--green);
+  background: transparent;
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.mute-btn.muted { color: var(--fg-dim); }
+@media (hover: hover) {
+  .mute-btn:hover { border-color: var(--green); }
+}
+
 .statusbar {
   display: flex;
   flex-wrap: wrap;
@@ -393,6 +410,103 @@ body {
 .status-value { color: var(--fg); }
 .status-value.alert { color: var(--amber); text-shadow: 0 0 6px rgba(255, 179, 71, 0.4); }
 .status-value.ok { color: var(--green); text-shadow: var(--glow); }
+
+/* Step-4 unauthorized-transfer drama */
+.transfer {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--red);
+  background: rgba(255, 90, 82, 0.07);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.transfer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.transfer-danger {
+  display: inline-flex;
+  flex: 0 0 auto;
+  animation: danger-blink 0.7s steps(1) infinite;
+}
+.danger-tri {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.danger-tri path {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.danger-tri rect { fill: var(--red); }
+@keyframes danger-blink {
+  50% { opacity: 0.15; }
+}
+.transfer.expired .transfer-danger { animation-duration: 0.35s; }
+.transfer-title {
+  color: var(--red);
+  text-shadow: 0 0 6px rgba(255, 90, 82, 0.4);
+  flex: 1;
+}
+.transfer-clock {
+  color: var(--red);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(255, 90, 82, 0.55);
+}
+
+.transfer-bar {
+  position: relative;
+  height: 12px;
+  margin-top: 10px;
+  border: 1px solid rgba(255, 90, 82, 0.5);
+  background: rgba(255, 90, 82, 0.08);
+  overflow: hidden;
+}
+.transfer-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255, 90, 82, 0.55), var(--red));
+  box-shadow: 0 0 10px rgba(255, 90, 82, 0.6);
+  /* width is driven inline from the animation loop; ease out the per-frame jumps */
+  transition: width 120ms linear;
+}
+.transfer-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  color: var(--fg-dim);
+}
+.transfer-meta span:last-child {
+  color: var(--red);
+  font-variant-numeric: tabular-nums;
+}
+
+.transfer-accounts { margin-top: 12px; }
+.transfer-accounts-label { color: var(--fg-dim); margin-bottom: 6px; }
+.transfer-acct {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  color: var(--amber);
+}
+.transfer-acct-id { color: var(--fg-dim); letter-spacing: 0.08em; }
+.transfer-acct-bal {
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 6px rgba(255, 179, 71, 0.3);
+}
+.transfer-acct.drained .transfer-acct-bal {
+  color: var(--red);
+  text-shadow: 0 0 6px rgba(255, 90, 82, 0.4);
+}
+
+.transfer.expired { animation: transfer-pulse 1s steps(1) infinite; }
+@keyframes transfer-pulse {
+  50% { border-color: rgba(255, 90, 82, 0.3); background: rgba(255, 90, 82, 0.03); }
+}
 
 .terminal {
   display: flex;
@@ -451,8 +565,10 @@ body {
   /* Bring tap targets up to 44px. The primary buttons can simply grow, but
      RESET has to stay a small piece of chrome in the header — give it an
      invisible 44px-tall hit area instead of inflating the visible box. */
-  .reset-btn { position: relative; padding: 6px 12px; }
-  .reset-btn::after {
+  .reset-btn,
+  .mute-btn { position: relative; padding: 6px 12px; }
+  .reset-btn::after,
+  .mute-btn::after {
     content: '';
     position: absolute;
     left: 0;

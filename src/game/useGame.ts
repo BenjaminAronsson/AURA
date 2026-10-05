@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
+  CONFIG,
   FREE_TEXT_FALLBACK,
   LOGIN,
   STAGES,
@@ -26,8 +27,10 @@ import {
   currentFlatStep,
   isComplete,
   isQuery,
+  matchRejection,
   normalize,
 } from './engine'
+import { audio } from './audio'
 
 const SAVE_KEY = 'aura.save'
 
@@ -43,9 +46,15 @@ interface SaveData {
   stepIndex: number
   log: LogLine[]
   operatorId: string
+  /** Absolute epoch-ms deadline for the Step-4 countdown, or null if not started. */
+  countdownDeadline: number | null
 }
 
-const CODE_STEP = FLAT_STEPS.find((fs) => fs.step.id === LOGIN.codeStepId) ?? FLAT_STEPS[0]
+/** Validate a value against a list of accepted answers (case/space-insensitive). */
+function matchesAny(accept: string[], input: string): boolean {
+  const n = normalize(input)
+  return n.length > 0 && accept.some((a) => normalize(a) === n)
+}
 
 function stageIntroLines(stage: Stage): LogLine[] {
   return [
@@ -87,7 +96,13 @@ function load(): SaveData | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as SaveData
     if (typeof parsed.stepIndex !== 'number' || !Array.isArray(parsed.log)) return null
-    return { stepIndex: parsed.stepIndex, log: parsed.log, operatorId: parsed.operatorId ?? '' }
+    return {
+      stepIndex: parsed.stepIndex,
+      log: parsed.log,
+      operatorId: parsed.operatorId ?? '',
+      countdownDeadline:
+        typeof parsed.countdownDeadline === 'number' ? parsed.countdownDeadline : null,
+    }
   } catch {
     return null
   }
@@ -99,6 +114,9 @@ export function useGame() {
   const [stepIndex, setStepIndex] = useState(initial?.stepIndex ?? 0)
   const [log, setLog] = useState<LogLine[]>(initial?.log ?? [])
   const [operatorId, setOperatorId] = useState(initial?.operatorId ?? '')
+  const [countdownDeadline, setCountdownDeadline] = useState<number | null>(
+    initial?.countdownDeadline ?? null,
+  )
   // Restore to the right screen: completed → end page, in-progress → terminal, else login.
   const [phase, setPhase] = useState<Phase>(() => {
     const idx = initial?.stepIndex ?? 0
@@ -114,21 +132,25 @@ export function useGame() {
     try {
       localStorage.setItem(
         SAVE_KEY,
-        JSON.stringify({ stepIndex, log, operatorId } satisfies SaveData),
+        JSON.stringify({ stepIndex, log, operatorId, countdownDeadline } satisfies SaveData),
       )
     } catch {
       /* storage unavailable — progress simply won't persist */
     }
-  }, [stepIndex, log, operatorId])
+  }, [stepIndex, log, operatorId, countdownDeadline])
+
+  const complete = isComplete(stepIndex)
 
   const append = useCallback((lines: LogLine[]) => {
     setLog((prev) => [...prev, ...lines])
   }, [])
 
-  /** LOGIN: validate the administrator access code. Returns true on success. */
-  const login = useCallback((operator: string, code: string): boolean => {
-    if (!checkAnswer(CODE_STEP.step, code)) return false
-    const id = operator.trim()
+  /** LOGIN: validate both operator credentials. Returns true on success. */
+  const login = useCallback((userId: string, key: string): boolean => {
+    if (!matchesAny(LOGIN.userIdAccept, userId) || !matchesAny(LOGIN.keyAccept, key)) {
+      return false
+    }
+    const id = userId.trim()
     setOperatorId(id)
     setStepIndex(1)
     setLog(terminalSeed(id))
@@ -198,8 +220,16 @@ export function useGame() {
       // Otherwise treat as an answer attempt.
       if (checkAnswer(fs.step, input)) {
         const next = stepIndex + 1
+        audio.success()
+        // Clearing the continuity step arms the financial-transfer countdown.
+        if (fs.step.startsCountdown) {
+          setCountdownDeadline(Date.now() + CONFIG.countdownSeconds * 1000)
+        }
         if (currentFlatStep(next)) {
-          const lines: LogLine[] = [...echo, { kind: 'success', text: fs.step.onSuccess }]
+          const lines: LogLine[] = [
+            ...echo,
+            ...fs.step.onSuccess.map((text) => ({ kind: 'success' as const, text })),
+          ]
           if (typeof fs.step.accessLevel === 'number') {
             lines.push({ kind: 'success', text: `ACCESS LEVEL: ${String(fs.step.accessLevel).padStart(2, '0')}` })
           }
@@ -212,17 +242,21 @@ export function useGame() {
           setPhase('won')
         }
       } else {
-        append([
-          ...echo,
-          { kind: 'error', text: 'VERIFICATION FAILED.' },
-          { kind: 'error', text: 'INVALID CREDENTIALS.' },
-        ])
+        audio.error()
+        // Special-case wrong answers (e.g. the AURA1 trap) first, else generic.
+        const special = matchRejection(fs.step, input)
+        if (special) {
+          append([...echo, ...special.map((text) => ({ kind: 'error' as const, text }))])
+        } else {
+          append([...echo, { kind: 'error', text: fs.step.onReject ?? 'VERIFICATION FAILED.' }])
+        }
       }
     },
     [append, stepIndex],
   )
 
   const reset = useCallback(() => {
+    audio.stopAll()
     try {
       localStorage.removeItem(SAVE_KEY)
     } catch {
@@ -231,12 +265,18 @@ export function useGame() {
     setStepIndex(0)
     setLog([])
     setOperatorId('')
+    setCountdownDeadline(null)
     setFreshTerminal(false)
     setPhase('login')
   }, [])
 
-  const complete = isComplete(stepIndex)
   const activeStage: Stage | null = currentFlatStep(stepIndex)?.stage ?? null
+  // Progress is shown as conceptual step (1..4), not flat-step index.
+  const stageNumber = activeStage ? STAGES.findIndex((s) => s.id === activeStage.id) + 1 : 0
+  const stepProgress = {
+    current: complete ? STAGES.length : Math.max(1, stageNumber),
+    total: STAGES.length,
+  }
 
   return {
     phase,
@@ -250,7 +290,11 @@ export function useGame() {
     complete,
     accessLevel: accessLevelAt(stepIndex),
     activeModule: complete ? 'OFFLINE' : activeStage?.title ?? '—',
-    progress: { current: Math.min(stepIndex, FLAT_STEPS.length), total: FLAT_STEPS.length },
+    progress: stepProgress,
+    /** Absolute epoch-ms deadline for the transfer countdown; null if inactive. */
+    countdownDeadline: complete ? null : countdownDeadline,
+    /** Total configured countdown duration, in ms. */
+    countdownDurationMs: CONFIG.countdownSeconds * 1000,
   }
 }
 

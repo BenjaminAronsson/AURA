@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { audio } from './audio'
 
 export interface TypeableLine {
   kind: string
@@ -49,6 +50,10 @@ export function useTypewriter<T extends TypeableLine>(lines: T[], opts: Options 
     const tick = () => {
       i += 1
       setPartial(full.slice(0, i))
+      // Teletype tick as characters print. Throttled + skips spaces so it reads
+      // as a steady printer chatter rather than a continuous tone.
+      const typed = full[i - 1]
+      if (typed && typed !== ' ' && i % 2 === 0) audio.type()
       if (i >= full.length) {
         // Brief pause at end of line, then commit and move on.
         timer = setTimeout(() => {

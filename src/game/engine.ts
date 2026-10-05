@@ -47,6 +47,19 @@ export function checkAnswer(step: Step, input: string): boolean {
   return step.accept.some((a) => normalize(a) === n)
 }
 
+/**
+ * Special wrong-answer response for a step, or null if none applies.
+ * Checked before the generic rejection — powers Step 4's `AURA1` trap.
+ */
+export function matchRejection(step: Step, input: string): string[] | null {
+  const n = normalize(input)
+  if (!n || !step.rejections) return null
+  for (const r of step.rejections) {
+    if (r.match.some((m) => normalize(m) === n)) return r.lines
+  }
+  return null
+}
+
 /** Treat as a free-text query (vs. an answer attempt). */
 export function isQuery(input: string): boolean {
   const n = normalize(input)

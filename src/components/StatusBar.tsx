@@ -22,7 +22,7 @@ export function StatusBar({ accessLevel, module, complete, progress }: StatusBar
         <span className="status-value">{module}</span>
       </span>
       <span className="status-item">
-        <span className="status-label">STAGE</span>
+        <span className="status-label">STEP</span>
         <span className="status-value">
           {String(progress.current).padStart(2, '0')}/{String(progress.total).padStart(2, '0')}
         </span>

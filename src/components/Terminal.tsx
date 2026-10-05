@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useTypewriter } from '../game/useTypewriter'
 import type { LogLine } from '../game/useGame'
+import { audio } from '../game/audio'
 
 interface TerminalProps {
   log: LogLine[]
@@ -42,6 +43,7 @@ export function Terminal({ log, onSubmit, disabled, typeFromStart }: TerminalPro
     autoFocuses.current = true
     const v = value
     setValue('')
+    if (v.trim()) audio.submit()
     onSubmit(v)
   }
 
@@ -49,10 +51,13 @@ export function Terminal({ log, onSubmit, disabled, typeFromStart }: TerminalPro
     if (e.key === 'Enter') {
       e.preventDefault()
       send()
+    } else if (e.key.length === 1 || e.key === 'Backspace') {
+      audio.keyTick()
     }
   }
 
   function handleAreaClick() {
+    audio.unlock()
     if (typing) skip()
     else {
       autoFocuses.current = true

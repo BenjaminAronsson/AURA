@@ -5,44 +5,74 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 
 Playable vertical slice. Stack: **React 18 + Vite + TypeScript** (single-page app, no router,
-no backend). [spec.md](spec.md) is the authoritative design. All five stages run end-to-end
-against **placeholder** puzzle answers seeded in `src/game/content.ts` — replace those with the
-real physical-room answers.
+no backend). The authoritative game logic is `AURA_Four_Step_Game_Logic.md` (operator: Elias
+Norberg); [spec.md](spec.md) is the broader design background. The four-step sequence runs
+end-to-end against the **real** physical-room answers seeded in `src/game/content.ts`.
 
 ## Screens / flow
 
 Four phases, switched in `src/App.tsx` on `game.phase` (restore picks the right one from the
-saved `stepIndex`):
-1. **`login`** (`LoginScreen`) — page 1 / question 1: typed intro + credential form (operator ID
-   + admin access code). The access code validates against stage 1 (`auth.code`); the operator ID
-   is free text and is echoed back later ("OPERATOR <ID>…") for a human touch. Wrong code → shake
-   + ACCESS DENIED.
-2. **`activating`** (`ActivationScreen`) — the typed "AURA operating again" reactivation sequence
-   between the two pages.
-3. **`terminal`** (`Terminal`) — page 2: the main game from stage 2 onward (questions 2–8 across
-   stages 2–5). A restored in-progress session (`stepIndex >= 1`) resumes straight here.
-4. **`won`** (`EndScreen`) — reached when the final step clears: types the shutdown sequence, then
-   reveals the victory banner (THE BREACH / SECURED / GAME WON) and a NEW SESSION reset.
+saved `stepIndex`). The game is **four conceptual steps**; the engine flattens them into ordered
+"flat steps" (login = flat index 0; terminal drives 1+):
+1. **`login`** (`LoginScreen`) — **Step 1, Operator Authentication**: typed intro + credential form
+   (User ID + Activation Key). **Both** fields validate against `LOGIN.userIdAccept` /
+   `LOGIN.keyAccept` in `useGame.login()`. Wrong either → shake + AUTHENTICATION FAILED (never say
+   which field).
+2. **`activating`** (`ActivationScreen`) — the typed "OPERATOR AUTHENTICATED / AURA reactivating"
+   sequence between the pages.
+3. **`terminal`** (`Terminal`) — the main game: **Step 2** (three identity questions), **Step 3**
+   (continuity token `7314` → arms the countdown), **Step 4** (manual master code). A restored
+   in-progress session (`stepIndex >= 1`) resumes straight here.
+4. **`won`** (`EndScreen`) — reached when Step 4 clears: types the shutdown sequence + recovered
+   transfer amount (`2 850 000 SEK`), then the victory banner (THE BREACH / SECURED / GAME WON).
+
+Two mechanics beyond plain verification:
+- **Special wrong-answer responses** (`Step.rejections` + `engine.matchRejection`) — Step 4's
+  `AURA1` old-code trap returns a unique "no longer valid / 204 days" message, not the generic
+  `MASTER CODE REJECTED`.
+- **Countdown / transfer drama** — clearing the step flagged `startsCountdown` (continuity) sets a
+  `countdownDeadline` in `useGame`; `TransferMonitor.tsx` renders the Step-4 drama: `MM:SS` clock
+  (keeps counting into negative `-MM:SS`), an **accelerating** progress bar, and corporate account
+  balances **draining to zero** at 00:00. It self-animates with `requestAnimationFrame` from the
+  deadline (so the rest of the app doesn't re-render). Visual pressure only — `ABORTAURA` always
+  wins. Tunables live in `CONFIG` (`countdownSeconds`, `transfer.curveExponent`, decoy
+  `transfer.accounts`); the account balances are decoys that do NOT sum to the `2 850 000 SEK`
+  end reveal.
 
 ## Code map
 
-- `src/game/content.ts` — **single source of truth** for all content: `STAGES` (5 stages, each
-  with sequential `steps`; each step has an optional human `preamble` + terse `prompt`), `LOGIN`
-  copy, `buildActivationLines()`, scripted `FREE_TEXT`, `SHUTDOWN_SEQUENCE`. Edit puzzles and
-  all on-screen copy here.
+- `src/game/content.ts` — **single source of truth** for all content: `CONFIG` (countdown duration),
+  `STAGES` (4 stages = the four steps, each with sequential `steps`; each step has an optional human
+  `preamble`, terse `prompt`, `accept`/`onSuccess[]`/`onReject`, optional `rejections` and
+  `startsCountdown`), `LOGIN` copy + credential `accept` lists, `buildActivationLines()`,
+  `buildEndingLines()`, `END_BANNER`, scripted `FREE_TEXT`. Edit puzzles and all on-screen copy here.
 - `src/game/engine.ts` — pure, React-free logic: `normalize`/`checkAnswer` (case/space-insensitive),
-  `answerFreeText` (whole-word keyword matching so short words like "hi" don't match inside
-  "which"), flat-step progression, `accessLevelAt`.
-- `src/game/useGame.ts` — the hook: owns `phase`, `operatorId`, `login()`, `finishActivation()`,
-  `submit()`, `reset()`. Routes input (answer vs. free-text vs. `help`/`status`/`repeat`/`hint`);
-  unrecognized questions during a step fall through to that step's advisory. Persists
-  `{stepIndex, log, operatorId}` to `localStorage` (`aura.save`), initialized lazily during
-  render to avoid a persist/hydrate race.
+  `matchRejection` (special wrong-answer lookup), `answerFreeText` (whole-word keyword matching so
+  short words like "hi" don't match inside "which"), flat-step progression, `accessLevelAt`.
+- `src/game/useGame.ts` — the hook: owns `phase`, `operatorId`, `countdownDeadline`, `login()`,
+  `finishActivation()`, `submit()`, `reset()`. `login()` checks both credentials. `submit()` routes
+  input (answer vs. free-text vs. `help`/`status`/`repeat`/`hint`), applies `matchRejection` before
+  the generic reject, and arms the countdown. Exposes `countdownSeconds` (negative once past zero).
+  Persists `{stepIndex, log, operatorId, countdownDeadline}` to `localStorage` (`aura.save`) —
+  storing an absolute deadline so a refresh restores remaining time; initialized lazily to avoid a
+  persist/hydrate race.
 - `src/game/useTypewriter.ts` — the movie-style typing effect. Types lines appended after mount
   char-by-char; shows pre-existing (restored) lines instantly; `skip()` = click-to-skip.
+- `src/game/audio.ts` — fully **synthesized** Web Audio engine (`audio` singleton): UI blips
+  (`keyTick`/`submit`), a security-coded `success` (neutral double-beep + low latch, intentionally
+  not a happy melody) and `error`, stings (`boot`/`activation`/`win`), a teletype `type()` tick
+  (driven by the typewriter as AURA prints), a steady ambient "soundtrack" hum that plays from the
+  login screen through gameplay, and an escalating Step-4 transfer alarm (dissonant beat + sub-bass,
+  tempo/pitch/volume rise toward 00:00). The `AudioContext` is created lazily on the first user
+  gesture (`unlock()`, called from login field focus/submit + terminal interaction), since browsers
+  block audio before interaction. Ambient/transfer are **intent-based** (`setAmbient`/`setTransfer`)
+  so a gesture after a page-restore still starts them. Mute persists to `localStorage` (`aura.muted`);
+  `useMuted()` lets `MuteButton` observe it. No audio files — safe for offline/GitHub Pages, no copyright.
 - `src/components/` — `TypedBlock` (types a fixed sequence, used by login/activation),
   `LoginScreen`, `ActivationScreen`, `Terminal` (typewriter log + input, submit on Enter,
-  input locked while typing), `StatusBar`.
+  input locked while typing), `StatusBar`, `TransferMonitor` (Step-4 blinking red danger triangle +
+  timer + accelerating progress bar + draining accounts; self-animating, shown only while the
+  countdown is active), `MuteButton` (topbar; toggles all synthesized audio).
 - `src/useViewportHeight.ts` — mirrors `visualViewport` into the `--app-height` custom property.
   `100%`/`100vh`/`100dvh` all fail to account for the iOS keyboard, which would leave the
   terminal's bottom-anchored input underneath it.

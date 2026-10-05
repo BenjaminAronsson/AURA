@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { TypedBlock } from './TypedBlock'
 import { buildActivationLines } from '../game/content'
+import { audio } from '../game/audio'
 
 interface Props {
   operatorId: string
@@ -13,6 +14,10 @@ export function ActivationScreen({ operatorId, onDone }: Props) {
     () => buildActivationLines(operatorId).map((text) => ({ kind: 'aura', text })),
     [operatorId],
   )
+
+  useEffect(() => {
+    audio.activation()
+  }, [])
 
   return (
     <div className="screen activation">

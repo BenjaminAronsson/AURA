@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { TypedBlock } from './TypedBlock'
 import { LOGIN } from '../game/content'
+import { audio } from '../game/audio'
 
 interface Props {
   /** Returns true on valid credentials (parent then switches screens). */
@@ -23,15 +24,23 @@ export function LoginScreen({ onAuthenticate }: Props) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (status === 'working') return
+    // Unlock audio from within this user gesture (browsers require it).
+    audio.unlock()
     if (!operator.trim() || !code.trim()) {
       setStatus('denied')
+      audio.error()
       return
     }
     setStatus('working')
     // Brief cinematic "verifying" beat before the verdict.
     window.setTimeout(() => {
       const ok = onAuthenticate(operator, code)
-      if (!ok) setStatus('denied')
+      if (ok) {
+        audio.boot()
+      } else {
+        setStatus('denied')
+        audio.error()
+      }
       // On success, the parent unmounts this screen.
     }, 850)
   }
@@ -66,6 +75,7 @@ export function LoginScreen({ onAuthenticate }: Props) {
               value={operator}
               placeholder={LOGIN.operatorPlaceholder}
               disabled={status === 'working'}
+              onFocus={() => audio.unlock()}
               onChange={(e) => {
                 setOperator(e.target.value)
                 if (status === 'denied') setStatus('idle')
@@ -85,6 +95,7 @@ export function LoginScreen({ onAuthenticate }: Props) {
               value={code}
               placeholder={LOGIN.codePlaceholder}
               disabled={status === 'working'}
+              onFocus={() => audio.unlock()}
               onChange={(e) => {
                 setCode(e.target.value)
                 if (status === 'denied') setStatus('idle')
