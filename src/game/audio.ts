@@ -14,7 +14,8 @@
 import { useEffect, useState } from 'react'
 
 const MUTE_KEY = 'aura.muted'
-const MASTER_VOLUME = 0.5
+const VOLUME_KEY = 'aura.volume'
+const DEFAULT_VOLUME = 0.5
 
 type Ctx = AudioContext
 
@@ -26,10 +27,22 @@ function loadMuted(): boolean {
   }
 }
 
+function loadVolume(): number {
+  try {
+    const v = parseFloat(localStorage.getItem(VOLUME_KEY) ?? '')
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULT_VOLUME
+  } catch {
+    return DEFAULT_VOLUME
+  }
+}
+
 class AuraAudio {
   private ctx: Ctx | null = null
   private master: GainNode | null = null
+  private analyser: AnalyserNode | null = null
+  private analyserBuf: Uint8Array<ArrayBuffer> | null = null
   private muted = loadMuted()
+  private volume = loadVolume()
   private listeners = new Set<() => void>()
 
   // Long-lived nodes for the ambient bed, plus the intent flag so a gesture
@@ -42,6 +55,10 @@ class AuraAudio {
 
   get isMuted(): boolean {
     return this.muted
+  }
+
+  get volumeLevel(): number {
+    return this.volume
   }
 
   subscribe(fn: () => void): () => void {
@@ -61,8 +78,13 @@ class AuraAudio {
       if (!AC) return
       this.ctx = new AC()
       this.master = this.ctx.createGain()
-      this.master.gain.value = this.muted ? 0 : MASTER_VOLUME
-      this.master.connect(this.ctx.destination)
+      this.master.gain.value = this.muted ? 0 : this.volume
+      // Analyser taps the master (pass-through) so the home visual can react to sound.
+      this.analyser = this.ctx.createAnalyser()
+      this.analyser.fftSize = 256
+      this.analyserBuf = new Uint8Array(new ArrayBuffer(this.analyser.fftSize))
+      this.master.connect(this.analyser)
+      this.analyser.connect(this.ctx.destination)
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume()
     // Realize any long-lived sound that was requested while still locked.
@@ -79,15 +101,44 @@ class AuraAudio {
     } catch {
       /* ignore */
     }
-    if (this.master && this.ctx) {
-      this.master.gain.setTargetAtTime(muted ? 0 : MASTER_VOLUME, this.ctx.currentTime, 0.02)
-    }
+    this.applyMasterGain()
     this.emit()
   }
 
   toggleMute(): void {
     this.unlock()
     this.setMuted(!this.muted)
+  }
+
+  setVolume(v: number): void {
+    this.volume = Math.min(1, Math.max(0, v))
+    try {
+      localStorage.setItem(VOLUME_KEY, String(this.volume))
+    } catch {
+      /* ignore */
+    }
+    this.applyMasterGain()
+    this.emit()
+  }
+
+  private applyMasterGain(): void {
+    if (this.master && this.ctx) {
+      this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.02)
+    }
+  }
+
+  /** Current output level (0..~1), for the home visual. 0 when locked/silent. */
+  getLevel(): number {
+    const a = this.analyser
+    const buf = this.analyserBuf
+    if (!a || !buf) return 0
+    a.getByteTimeDomainData(buf)
+    let sum = 0
+    for (let i = 0; i < buf.length; i++) {
+      const x = (buf[i] - 128) / 128
+      sum += x * x
+    }
+    return Math.min(1, Math.sqrt(sum / buf.length) * 3)
   }
 
   /* ---- low-level tone helper ------------------------------------- */
@@ -146,14 +197,22 @@ class AuraAudio {
     this.tone({ freq: 1320, type: 'square', dur: 0.06, gain: 0.1, when: 0.05 })
   }
 
+  /** Quiet security-flavored blip for portal navigation. */
+  uiBlip(): void {
+    this.tone({ freq: 430, type: 'sine', dur: 0.05, gain: 0.06, filter: 1400 })
+    this.tone({ freq: 215, type: 'sine', dur: 0.1, gain: 0.05, when: 0.02 })
+  }
+
   /**
-   * "Access granted" confirmation — deliberately neutral/procedural, not a happy
-   * melody: two clipped equal-pitch beeps plus a low mechanical latch thud.
+   * "Accepted" confirmation — cold and procedural, not a chime: a low filtered
+   * tone with a sub thump and a faint detuned shimmer that decays. No melodic
+   * interval, a touch of unease rather than a reward jingle.
    */
   success(): void {
-    this.tone({ freq: 784, type: 'square', dur: 0.055, gain: 0.12, filter: 2400 })
-    this.tone({ freq: 784, type: 'square', dur: 0.075, gain: 0.12, filter: 2400, when: 0.1 })
-    this.tone({ freq: 130, type: 'sine', dur: 0.16, gain: 0.13, when: 0.1 })
+    this.tone({ freq: 196, type: 'sawtooth', dur: 0.26, gain: 0.14, filter: 760 })
+    this.tone({ freq: 294, type: 'sawtooth', dur: 0.22, gain: 0.07, filter: 900, when: 0.01 })
+    this.tone({ freq: 65, type: 'sine', dur: 0.3, gain: 0.16 })
+    this.tone({ freq: 1570, type: 'sine', dur: 0.12, gain: 0.03, when: 0.04 })
   }
 
   error(): void {
@@ -161,23 +220,32 @@ class AuraAudio {
   }
 
   boot(): void {
-    this.tone({ freq: 55, type: 'sine', dur: 0.7, gain: 0.3, slideTo: 165, filter: 500 })
-    this.tone({ freq: 440, type: 'triangle', dur: 0.12, gain: 0.1, when: 0.55 })
+    // ACCESS GRANTED — a restrained, authoritative two-tone that steps DOWN (a
+    // latch engaging), over a short sub underlay. Procedural and dark, not a sweep.
+    this.tone({ freq: 196, type: 'sawtooth', dur: 0.16, gain: 0.1, filter: 620 })
+    this.tone({ freq: 131, type: 'sawtooth', dur: 0.34, gain: 0.12, filter: 560, when: 0.15 })
+    this.tone({ freq: 55, type: 'sine', dur: 0.55, gain: 0.18, slideTo: 44, when: 0.14 })
   }
 
   activation(): void {
-    this.tone({ freq: 160, type: 'sawtooth', dur: 0.9, gain: 0.14, slideTo: 760, filter: 1200 })
-    this.tone({ freq: 523.25, type: 'triangle', dur: 0.14, gain: 0.12, when: 0.8 })
+    // Low saw sweeping up through a lowpass + a deep thud — a system coming under load,
+    // not a cheerful chime.
+    this.tone({ freq: 90, type: 'sawtooth', dur: 1.1, gain: 0.16, slideTo: 440, filter: 820 })
+    this.tone({ freq: 48, type: 'sine', dur: 0.5, gain: 0.2, slideTo: 60 })
+    this.tone({ freq: 196, type: 'sawtooth', dur: 0.16, gain: 0.08, filter: 600, when: 0.95 })
   }
 
   win(): void {
-    ;[523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
-      this.tone({ freq: f, type: 'triangle', dur: 0.4, gain: 0.18, when: i * 0.12 }),
-    )
-    // Final held chord.
-    ;[523.25, 659.25, 783.99].forEach((f) =>
-      this.tone({ freq: f, type: 'triangle', dur: 0.9, gain: 0.1, when: 0.5 }),
-    )
+    // Ominous and final, not a fanfare: a deep sub that falls away, a dark low
+    // minor dyad held underneath, and one distant high shimmer that fades — relief
+    // tinged with dread, matching the "the money never left, but what is AURA?" tone.
+    this.tone({ freq: 58, type: 'sine', dur: 2.4, gain: 0.26, slideTo: 40, filter: 320 })
+    this.tone({ freq: 110, type: 'sawtooth', dur: 1.9, gain: 0.09, slideTo: 80, filter: 340 })
+    // Low minor third (D3 + F3), dark and unresolved.
+    this.tone({ freq: 146.83, type: 'triangle', dur: 1.8, gain: 0.08, when: 0.18, filter: 480 })
+    this.tone({ freq: 174.61, type: 'triangle', dur: 1.8, gain: 0.07, when: 0.18, filter: 480 })
+    // A single far-off shimmer for mystery.
+    this.tone({ freq: 932, type: 'sine', dur: 0.7, gain: 0.03, when: 0.06 })
   }
 
   /* ---- ambient "soundtrack" bed ---------------------------------- */
@@ -309,4 +377,11 @@ export function useMuted(): boolean {
   const [muted, setMuted] = useState(audio.isMuted)
   useEffect(() => audio.subscribe(() => setMuted(audio.isMuted)), [])
   return muted
+}
+
+/** React hook: re-renders a control when mute/volume change. */
+export function useVolume(): number {
+  const [vol, setVol] = useState(audio.volumeLevel)
+  useEffect(() => audio.subscribe(() => setVol(audio.volumeLevel)), [])
+  return vol
 }

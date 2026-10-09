@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { audio } from './audio'
+import { settings } from './settings'
 
 export interface TypeableLine {
   kind: string
@@ -34,6 +35,12 @@ export function useTypewriter<T extends TypeableLine>(lines: T[], opts: Options 
       setPartial(null)
       return
     }
+    // Instant text speed (a settings option) reveals everything without typing.
+    if (settings.instantText) {
+      setPartial(null)
+      setRevealed(lines.length)
+      return
+    }
     const full = lines[revealed]?.text ?? ''
 
     // Blank lines reveal instantly.
@@ -43,7 +50,7 @@ export function useTypewriter<T extends TypeableLine>(lines: T[], opts: Options 
       return
     }
 
-    const base = 1000 / cps
+    const base = 1000 / (cps * settings.typeSpeedFactor)
     let i = 0
     let timer: ReturnType<typeof setTimeout>
 
