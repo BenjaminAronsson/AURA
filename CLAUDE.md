@@ -9,9 +9,22 @@ no backend). The authoritative game logic is `AURA_Four_Step_Game_Logic.md` (ope
 Norberg); [spec.md](spec.md) is the broader design background. The four-step sequence runs
 end-to-end against the **real** physical-room answers seeded in `src/game/content.ts`.
 
+## Portal shell (above the game)
+
+`src/App.tsx` owns a **`view`** state (`home | footage | emails | faq | incidents | settings |
+game`) that wraps the game. `useGame()` stays mounted for every view, so popping out to the portal
+and back never loses progress. Initial view is `game` when a session is restored into play
+(`game.phase` is `terminal`/`won`), else `home`. `HomeScreen` (animated `AuraCore` canvas + live
+clock + menu) is the entry point; **OPERATOR ACCESS** (or **RESUME SESSION** when mid-game) enters
+`game`; the terminal topbar's **MENU** button returns to `home`; **NEW SESSION** resets and returns
+home. The in-fiction pages (`FootagePage`, `EmailsPage`, `FaqPage`, `IncidentsPage`) are **flavor /
+red-herrings only — never gate progression** (copy lives in `src/game/portalContent.ts`).
+`SettingsPage` controls sound (mute/volume via `audio`) and `settings` (CRT effects, reduce motion,
+text speed). Nav chrome: `PortalNav` (home big-menu variant + compact bar variant) and `PortalLayout`.
+
 ## Screens / flow
 
-Four phases, switched in `src/App.tsx` on `game.phase` (restore picks the right one from the
+Within the `game` view, four phases switch on `game.phase` (restore picks the right one from the
 saved `stepIndex`). The game is **four conceptual steps**; the engine flattens them into ordered
 "flat steps" (login = flat index 0; terminal drives 1+):
 1. **`login`** (`LoginScreen`) — **Step 1, Operator Authentication**: typed intro + credential form
@@ -56,18 +69,29 @@ Two mechanics beyond plain verification:
   Persists `{stepIndex, log, operatorId, countdownDeadline}` to `localStorage` (`aura.save`) —
   storing an absolute deadline so a refresh restores remaining time; initialized lazily to avoid a
   persist/hydrate race.
+- `src/game/portalContent.ts` — in-fiction flavor copy for the portal pages (cameras, emails, FAQ,
+  incidents, home strings). **Atmosphere only, not puzzle data** — never encode step answers here.
+- `src/game/settings.ts` — `settings` singleton + `useSettings()` (same pattern as `audio`):
+  `crtEffects`, `reduceMotion`, `textSpeed`. Persisted to `localStorage` (`aura.settings`). `App`
+  gates the CRT overlays on it; `useTypewriter` reads `typeSpeedFactor`/`instantText`; `AuraCore`
+  reads `reduceMotion`.
 - `src/game/useTypewriter.ts` — the movie-style typing effect. Types lines appended after mount
-  char-by-char; shows pre-existing (restored) lines instantly; `skip()` = click-to-skip.
+  char-by-char; shows pre-existing (restored) lines instantly; `skip()` = click-to-skip. Honors
+  the `textSpeed` setting. `freshTerminal` is consumed ~1.5s after activation so returning from the
+  portal (or a refresh) restores the terminal log instantly instead of re-typing it.
 - `src/game/audio.ts` — fully **synthesized** Web Audio engine (`audio` singleton): UI blips
-  (`keyTick`/`submit`), a security-coded `success` (neutral double-beep + low latch, intentionally
-  not a happy melody) and `error`, stings (`boot`/`activation`/`win`), a teletype `type()` tick
+  (`keyTick`/`submit`/`uiBlip`), a cold/industrial `success` (low filtered tone + sub, deliberately
+  unsettling, not a happy melody) and `error`, dark `boot`/`activation` stings, a `win` sting, a
+  teletype `type()` tick
   (driven by the typewriter as AURA prints), a steady ambient "soundtrack" hum that plays from the
   login screen through gameplay, and an escalating Step-4 transfer alarm (dissonant beat + sub-bass,
   tempo/pitch/volume rise toward 00:00). The `AudioContext` is created lazily on the first user
   gesture (`unlock()`, called from login field focus/submit + terminal interaction), since browsers
   block audio before interaction. Ambient/transfer are **intent-based** (`setAmbient`/`setTransfer`)
-  so a gesture after a page-restore still starts them. Mute persists to `localStorage` (`aura.muted`);
-  `useMuted()` lets `MuteButton` observe it. No audio files — safe for offline/GitHub Pages, no copyright.
+  so a gesture after a page-restore still starts them. `setVolume`/`getLevel` (an AnalyserNode RMS)
+  back the Settings slider and the audio-reactive `AuraCore`. Mute/volume persist to `localStorage`
+  (`aura.muted`/`aura.volume`); `useMuted`/`useVolume` let controls observe them. No audio files —
+  safe for offline/GitHub Pages, no copyright.
 - `src/components/` — `TypedBlock` (types a fixed sequence, used by login/activation),
   `LoginScreen`, `ActivationScreen`, `Terminal` (typewriter log + input, submit on Enter,
   input locked while typing), `StatusBar`, `TransferMonitor` (Step-4 blinking red danger triangle +

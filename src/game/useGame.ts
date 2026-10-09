@@ -162,6 +162,11 @@ export function useGame() {
   const finishActivation = useCallback(() => {
     setFreshTerminal(true)
     setPhase('terminal')
+    // Consume the "type it out" flag shortly after the terminal mounts. The
+    // typewriter snapshots this at mount, so clearing it later is harmless for
+    // the initial reveal but makes any later remount (e.g. returning from the
+    // portal MENU, or a refresh) restore the log instantly instead of re-typing.
+    window.setTimeout(() => setFreshTerminal(false), 1500)
   }, [])
 
   const submit = useCallback(
