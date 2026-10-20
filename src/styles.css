@@ -351,11 +351,17 @@ body {
 }
 .topbar {
   display: flex;
-  align-items: baseline;
-  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
   padding: calc(14px + var(--safe-t)) 2px 10px;
   border-bottom: 1px solid var(--line);
 }
+.topbar-actions {
+  display: flex;
+  gap: 8px;
+}
+.reset-btn.armed { color: var(--red); border-color: var(--red); }
 .brand {
   color: var(--green);
   font-weight: 700;
@@ -819,8 +825,9 @@ body {
 }
 .portal-header {
   display: flex;
-  align-items: baseline;
-  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
   padding: calc(14px + var(--safe-t)) 2px 10px;
 }
 .portal-title {
@@ -999,7 +1006,49 @@ body {
 .surveil-sep { color: var(--fg-dim); }
 .surveil-label { color: var(--fg-dim); }
 /* on the home screen the tag sits on its own, centred under the menu */
-.home .surveil { margin-top: 16px; justify-content: center; }
+/* home: REC tag + sound toggle side by side under the status strip */
+.home-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 16px;
+  margin-top: 14px;
+}
+.home-countdown { margin-top: 12px; }
+
+/* compact transfer countdown chip (portal + home, while Step 4 is live) */
+.cd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--red);
+  color: var(--red);
+  background: rgba(255, 90, 82, 0.08);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cd-chip.expired { animation: danger-blink 0.7s steps(1) infinite; }
+
+/* MENU + REC + sound bar above the login / activation / end screens */
+.game-bar {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: calc(10px + var(--safe-t)) calc(16px + var(--safe-r)) 6px calc(16px + var(--safe-l));
+}
+.game-bar .surveil { margin-left: auto; }
+/* the bar already covers the top safe area, so the screen below needn't */
+.game-bar ~ .screen { padding-top: 12px; }
 
 /* ---- EMAILS ---- */
 .email-list { list-style: none; margin: 0; padding: 0; }
@@ -1164,4 +1213,85 @@ body {
   .office-monitor { animation: none; }
   .surveil-dot { animation: none; }
   .feed-img { animation: none; transform: scale(1.06); }
+  .cd-chip.expired { animation: none; }
 }
+
+/* ============================================================
+   PHONE UX
+   The game is played on phones: nothing may run off-screen, every control
+   stays reachable, and the terminal keeps as much room as possible for text.
+   ============================================================ */
+@media (max-width: 560px) {
+  /* Terminal topbar: row 1 = AURA + REC tag, row 2 = three equal buttons. */
+  .brand-sub { display: none; }
+  .topbar { gap: 8px 10px; padding-bottom: 8px; }
+  .topbar .surveil { margin-left: auto; }
+  .topbar-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .topbar-actions button {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 4px;
+    text-align: center;
+  }
+
+  /* Status: tidy 2x2 grid instead of a ragged wrap. */
+  .statusbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    padding: 8px 2px;
+  }
+  .status-item { min-width: 0; flex-wrap: wrap; gap: 4px; }
+
+  /* Transfer monitor: same information, less height. */
+  .transfer { padding: 8px 10px; margin-top: 6px; }
+  .transfer-head { gap: 8px; }
+  .danger-tri { width: 18px; height: 18px; }
+  .transfer-title { font-size: 9px; letter-spacing: 0.08em; }
+  .transfer-clock { font-size: 18px; }
+  .transfer-bar { margin-top: 6px; height: 10px; }
+  .transfer-meta { margin-top: 3px; font-size: 10px; }
+  .transfer-accounts { margin-top: 6px; }
+  .transfer-accounts-label { display: none; }
+  .transfer-acct { font-size: 10px; padding: 0; }
+  .transfer-acct-id { letter-spacing: 0.02em; }
+
+  /* Portal nav: OPERATOR ACCESS on its own row, links in an even 3-column grid. */
+  .portal-nav-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .portal-nav-bar .portal-enter { grid-column: 1 / -1; }
+  .portal-nav-bar .portal-link {
+    border: 1px solid var(--line);
+    text-align: center;
+    padding: 9px 4px;
+    line-height: 1.3;
+    white-space: normal;
+  }
+  .portal-header .surveil { margin-left: auto; }
+
+  /* Home: smaller core so the menu is reachable without much scrolling. */
+  .home-visual { max-width: 210px; }
+  .home-title { font-size: 40px; }
+
+  /* Game bar (login/activation/end): keep it compact. */
+  .game-bar { gap: 8px; padding-left: calc(12px + var(--safe-l)); padding-right: calc(12px + var(--safe-r)); }
+  .game-bar .nav-btn,
+  .game-bar .mute-btn { min-height: 38px; }
+}
+
+/* On-screen keyboard open (set by useViewportHeight): give the terminal log the
+   room — drop the status grid and the account list while the player types. */
+:root[data-kb='open'] .statusbar,
+:root[data-kb='open'] .transfer-accounts,
+:root[data-kb='open'] .transfer-meta { display: none; }
+:root[data-kb='open'] .topbar { padding-top: calc(6px + var(--safe-t)); padding-bottom: 6px; }
+:root[data-kb='open'] .topbar .surveil,
+:root[data-kb='open'] .topbar .brand { display: none; }

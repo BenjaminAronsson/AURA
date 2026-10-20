@@ -126,6 +126,20 @@ The page is played on phones, so treat these as invariants rather than polish:
   rewrite a puzzle answer on submit.
 - Keep taps ≥44px. For small chrome like RESET, use an invisible `::after` hit area rather than
   inflating the visible control.
+- **Nothing may run off-screen at 375px.** Headers wrap (`flex-wrap`); the terminal topbar puts
+  MENU / SOUND / RESET in `.topbar-actions`, which becomes a full-width 3-column row ≤560px.
+  Never add another fixed-width item to a non-wrapping row.
+- **MENU is reachable at every stage** — terminal topbar, plus the `.game-bar` App renders above
+  login/activation/end. Leaving keeps all progress (`useGame` stays mounted); leaving mid-activation
+  finishes it so RESUME lands in the terminal. While Step 4 runs, `CountdownChip` shows the timer in
+  the portal.
+- **Keyboard open** (`data-kb="open"` on `<html>`, set by `useViewportHeight`): CSS hides the status
+  grid and account list so the terminal log keeps room while typing.
+- **Audio on phones:** App unlocks audio on *any* touchend/click/key (iOS ignores `focus`).
+  `audio.unlock()` sets `navigator.audioSession.type = 'playback'` (iOS silent switch) with a silent
+  looping `<audio>` fallback on older iOS, and plays a silent buffer to fully unlock. Phone speakers
+  can't reproduce < ~150 Hz, so bass cues need mid-range content (the ambient "presence" layer, the
+  win dyad's upper octave); a compressor + makeup gain keeps quiet cues audible.
 
 ## What AURA is
 

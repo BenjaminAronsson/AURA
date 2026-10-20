@@ -261,7 +261,7 @@ A countdown begins.
 
 Working default:
 
-`15:00`
+`30:00`
 
 The countdown duration should be configurable.
 

@@ -15,9 +15,45 @@ import { useEffect, useState } from 'react'
 
 const MUTE_KEY = 'aura.muted'
 const VOLUME_KEY = 'aura.volume'
-const DEFAULT_VOLUME = 0.5
+const DEFAULT_VOLUME = 0.8
+/** Post-compressor gain: lifts quiet cues so they carry on small phone speakers. */
+const MAKEUP_GAIN = 3
 
 type Ctx = AudioContext
+
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  )
+}
+
+/** A 0.1s silent WAV as a blob URL (for the iOS keep-alive trick below). */
+function silentWavUrl(): string {
+  const rate = 8000
+  const samples = 800
+  const buf = new ArrayBuffer(44 + samples)
+  const v = new DataView(buf)
+  const str = (o: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i))
+  }
+  str(0, 'RIFF')
+  v.setUint32(4, 36 + samples, true)
+  str(8, 'WAVE')
+  str(12, 'fmt ')
+  v.setUint32(16, 16, true)
+  v.setUint16(20, 1, true) // PCM
+  v.setUint16(22, 1, true) // mono
+  v.setUint32(24, rate, true)
+  v.setUint32(28, rate, true)
+  v.setUint16(32, 1, true)
+  v.setUint16(34, 8, true) // 8-bit
+  str(36, 'data')
+  v.setUint32(40, samples, true)
+  for (let i = 0; i < samples; i++) v.setUint8(44 + i, 128) // unsigned 8-bit silence
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))
+}
 
 function loadMuted(): boolean {
   try {
@@ -70,28 +106,89 @@ class AuraAudio {
     this.listeners.forEach((f) => f())
   }
 
-  /** Create/resume the context. Must be called from within a user gesture. */
+  private keepAlive: HTMLAudioElement | null = null
+
+  /**
+   * Create/resume the context. Must be called from within a user gesture —
+   * App installs a document-level listener so ANY tap/click/key does this.
+   * Phone-specific handling:
+   *  - iOS mutes Web Audio when the ringer/silent switch is on. Safari 16.4+
+   *    exposes `navigator.audioSession`; 'playback' opts out of the switch.
+   *    Older iOS gets a looping silent <audio> element, which switches the page
+   *    into the playback audio category for the same effect.
+   *  - iOS only fully unlocks a context once a sound starts inside the gesture,
+   *    so a 1-sample silent buffer is played whenever it isn't running yet.
+   *  - iOS can leave the context 'interrupted' (calls, backgrounding); any state
+   *    other than 'running' is resumed on the next gesture.
+   */
   unlock(): void {
     if (typeof window === 'undefined') return
+    try {
+      const nav = navigator as Navigator & { audioSession?: { type: string } }
+      if (nav.audioSession && nav.audioSession.type !== 'playback') nav.audioSession.type = 'playback'
+    } catch {
+      /* unsupported */
+    }
     if (!this.ctx) {
       const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       if (!AC) return
       this.ctx = new AC()
       this.master = this.ctx.createGain()
       this.master.gain.value = this.muted ? 0 : this.volume
-      // Analyser taps the master (pass-through) so the home visual can react to sound.
+      // Gentle compression + makeup gain: lets the quiet/atmospheric cues be
+      // audible on a phone speaker without the loud alarm clipping.
+      const comp = this.ctx.createDynamicsCompressor()
+      comp.threshold.value = -24
+      comp.knee.value = 10
+      comp.ratio.value = 4
+      comp.attack.value = 0.003
+      comp.release.value = 0.25
+      const makeup = this.ctx.createGain()
+      makeup.gain.value = MAKEUP_GAIN
+      // Analyser taps the output (pass-through) so the home visual can react to sound.
       this.analyser = this.ctx.createAnalyser()
       this.analyser.fftSize = 256
       this.analyserBuf = new Uint8Array(new ArrayBuffer(this.analyser.fftSize))
-      this.master.connect(this.analyser)
+      this.master.connect(comp)
+      comp.connect(makeup)
+      makeup.connect(this.analyser)
       this.analyser.connect(this.ctx.destination)
+
+      // Re-resume after iOS interruptions once the page is visible again.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this.ctx && this.ctx.state !== 'running') {
+          void this.ctx.resume().catch(() => {})
+        }
+      })
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume()
+    const ctx = this.ctx
+    if (ctx.state !== 'running') {
+      void ctx.resume().catch(() => {})
+      const src = ctx.createBufferSource()
+      src.buffer = ctx.createBuffer(1, 1, 22050)
+      src.connect(ctx.destination)
+      src.start(0)
+    }
+    this.ensureKeepAlive()
     // Realize any long-lived sound that was requested while still locked.
     if (this.wantAmbient && !this.ambient) this.startAmbient()
     if (this.transferParams && this.transferTimer === null) {
       this.startTransfer(this.transferParams.deadline, this.transferParams.durationMs)
     }
+  }
+
+  /** Older iOS only: a looping silent <audio> so the silent switch doesn't mute us. */
+  private ensureKeepAlive(): void {
+    const hasSessionApi = 'audioSession' in navigator
+    if (hasSessionApi || !isIOS()) return
+    if (!this.keepAlive) {
+      const el = new Audio(silentWavUrl())
+      el.loop = true
+      el.setAttribute('playsinline', '')
+      el.setAttribute('x-webkit-airplay', 'deny')
+      this.keepAlive = el
+    }
+    if (this.keepAlive.paused) void this.keepAlive.play().catch(() => {})
   }
 
   setMuted(muted: boolean): void {
@@ -244,6 +341,10 @@ class AuraAudio {
     // Low minor third (D3 + F3), dark and unresolved.
     this.tone({ freq: 146.83, type: 'triangle', dur: 1.8, gain: 0.08, when: 0.18, filter: 480 })
     this.tone({ freq: 174.61, type: 'triangle', dur: 1.8, gain: 0.07, when: 0.18, filter: 480 })
+    // Same dyad an octave up, quietly — phone speakers can't reproduce the low
+    // octave, so this is what carries the chord on a phone.
+    this.tone({ freq: 293.66, type: 'triangle', dur: 1.8, gain: 0.05, when: 0.18, filter: 900 })
+    this.tone({ freq: 349.23, type: 'triangle', dur: 1.8, gain: 0.045, when: 0.18, filter: 900 })
     // A single far-off shimmer for mystery.
     this.tone({ freq: 932, type: 'sine', dur: 0.7, gain: 0.03, when: 0.06 })
   }
@@ -292,21 +393,40 @@ class AuraAudio {
     lfoGain.connect(lp.frequency)
     lfo.start()
 
+    // "Presence" layer: the 55/82 Hz drones are below what a phone speaker can
+    // reproduce, so add soft harmonics (220/330 Hz) with a slow tremolo. On
+    // headphones/desktop it just thickens the hum; on a phone it IS the hum.
+    const presence = ctx.createGain()
+    presence.gain.value = 0.32
+    presence.connect(gain)
+    const presOscs = [220, 329.6].map((freq, i) => {
+      const o = ctx.createOscillator()
+      o.type = 'triangle'
+      o.frequency.value = freq
+      o.detune.value = i === 0 ? -4 : 5
+      o.connect(presence)
+      o.start()
+      return o
+    })
+    const trem = ctx.createOscillator()
+    const tremGain = ctx.createGain()
+    trem.frequency.value = 0.18
+    tremGain.gain.value = 0.14
+    trem.connect(tremGain)
+    tremGain.connect(presence.gain)
+    trem.start()
+
+    const all = [...oscs, ...presOscs, lfo, trem]
     this.ambient = {
       gain,
       stop: () => {
-        oscs.forEach((o) => {
+        all.forEach((o) => {
           try {
             o.stop()
           } catch {
             /* already stopped */
           }
         })
-        try {
-          lfo.stop()
-        } catch {
-          /* already stopped */
-        }
       },
     }
   }

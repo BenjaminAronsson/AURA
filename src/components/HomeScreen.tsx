@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { AuraCore } from './AuraCore'
 import { PortalNav } from './PortalNav'
 import { SurveillanceTag } from './SurveillanceTag'
+import { MuteButton } from './MuteButton'
+import { CountdownChip } from './CountdownChip'
 import { HOME } from '../game/portalContent'
 import type { View } from '../App'
 
@@ -9,6 +11,8 @@ interface Props {
   inProgress: boolean
   onEnter: () => void
   onNavigate: (v: View) => void
+  /** Live Step-4 deadline, or null. */
+  countdownDeadline: number | null
 }
 
 /** Stockholm wall-clock, HH:MM:SS, for the authentic "live system" strip. */
@@ -21,7 +25,7 @@ function useClock(): string {
   return now.toLocaleTimeString('sv-SE', { hour12: false, timeZone: 'Europe/Stockholm' })
 }
 
-export function HomeScreen({ inProgress, onEnter, onNavigate }: Props) {
+export function HomeScreen({ inProgress, onEnter, onNavigate, countdownDeadline }: Props) {
   const clock = useClock()
   return (
     <div className="screen home">
@@ -50,7 +54,16 @@ export function HomeScreen({ inProgress, onEnter, onNavigate }: Props) {
           </span>
         </div>
 
-        <SurveillanceTag />
+        <div className="home-controls">
+          <SurveillanceTag />
+          <MuteButton />
+        </div>
+
+        {countdownDeadline !== null && (
+          <div className="home-countdown">
+            <CountdownChip deadline={countdownDeadline} />
+          </div>
+        )}
 
         <p className="home-tagline">{HOME.tagline}</p>
 
