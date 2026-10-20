@@ -17,7 +17,11 @@ export function useViewportHeight() {
 
     const apply = () => {
       const height = vv?.height ?? window.innerHeight
-      document.documentElement.style.setProperty('--app-height', `${height}px`)
+      const root = document.documentElement
+      root.style.setProperty('--app-height', `${height}px`)
+      // Flag an open on-screen keyboard (visible box much shorter than the
+      // layout viewport) so the CSS can drop non-essential chrome while typing.
+      root.dataset.kb = vv && vv.height < window.innerHeight * 0.75 ? 'open' : 'closed'
     }
 
     apply()

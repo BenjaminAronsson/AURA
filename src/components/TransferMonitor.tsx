@@ -16,7 +16,7 @@ function groupThousands(n: number): string {
 }
 
 /** MM:SS, prefixing "-" once the clock runs past zero. */
-function clock(seconds: number): string {
+export function formatClock(seconds: number): string {
   const sign = seconds < 0 ? '-' : ''
   const abs = Math.abs(seconds)
   const m = Math.floor(abs / 60)
@@ -65,7 +65,7 @@ export function TransferMonitor({ deadline, durationMs }: TransferMonitorProps) 
           </svg>
         </span>
         <span className="transfer-title">UNAUTHORIZED TRANSFER IN PROGRESS</span>
-        <span className="transfer-clock">{clock(remainingSec)}</span>
+        <span className="transfer-clock">{formatClock(remainingSec)}</span>
       </div>
 
       <div className="transfer-bar" aria-hidden="true">

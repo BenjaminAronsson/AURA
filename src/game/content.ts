@@ -18,8 +18,8 @@
 /* ------------------------------------------------------------------ */
 
 export const CONFIG = {
-  /** Step-3 → Step-4 countdown duration, in seconds (default 15:00). */
-  countdownSeconds: 15 * 60,
+  /** Step-3 → Step-4 countdown duration, in seconds (30:00). */
+  countdownSeconds: 30 * 60,
   /**
    * Step-4 "unauthorized transfer" drama. The progress bar and the account
    * drain both follow an accelerating curve of elapsed time: fraction^exponent,

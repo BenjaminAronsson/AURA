@@ -52,12 +52,32 @@ export default function App() {
     if (game.phase === 'won') audio.win()
   }, [game.phase])
 
+  // Phones only allow audio after a user gesture, and iOS only counts certain
+  // events. Unlock on ANY tap/click/key anywhere (capture phase, so it runs even
+  // if a component stops propagation). unlock() is cheap once audio is running.
+  useEffect(() => {
+    const unlock = () => audio.unlock()
+    const events = ['touchend', 'click', 'keydown', 'pointerup'] as const
+    events.forEach((e) => document.addEventListener(e, unlock, { capture: true, passive: true }))
+    return () => events.forEach((e) => document.removeEventListener(e, unlock, { capture: true }))
+  }, [])
+
   const inProgress = game.phase === 'terminal' || game.phase === 'activating'
+  // Live transfer deadline, shown as a chip in the portal so time isn't lost while browsing.
+  const activeDeadline = game.phase === 'terminal' ? game.countdownDeadline : null
 
   function navigate(v: View) {
     audio.unlock()
     audio.uiBlip()
     setView(v)
+  }
+
+  /** MENU from any game stage: go to the portal, keeping all progress. */
+  function leaveToMenu() {
+    // Leaving mid-activation would otherwise replay the whole sequence on return;
+    // finish it so RESUME lands straight in the terminal.
+    if (game.phase === 'activating') game.finishActivation()
+    navigate('home')
   }
 
   function enterGame() {
@@ -81,7 +101,13 @@ export default function App() {
     setView('home')
   }
 
-  const portalProps = { active: view, inProgress, onNavigate: navigate, onEnter: enterGame }
+  const portalProps = {
+    active: view,
+    inProgress,
+    onNavigate: navigate,
+    onEnter: enterGame,
+    countdownDeadline: activeDeadline,
+  }
 
   return (
     <div className="app">
@@ -93,7 +119,12 @@ export default function App() {
       )}
 
       {view === 'home' && (
-        <HomeScreen inProgress={inProgress} onEnter={enterGame} onNavigate={navigate} />
+        <HomeScreen
+          inProgress={inProgress}
+          onEnter={enterGame}
+          onNavigate={navigate}
+          countdownDeadline={activeDeadline}
+        />
       )}
 
       {view === 'footage' && (
@@ -124,6 +155,17 @@ export default function App() {
 
       {view === 'game' && (
         <>
+          {/* MENU + sound on every non-terminal stage too (the terminal has its own topbar). */}
+          {game.phase !== 'terminal' && (
+            <div className="game-bar">
+              <button className="nav-btn" onClick={leaveToMenu} title="Back to menu — progress is kept">
+                ◂ MENU
+              </button>
+              <SurveillanceTag />
+              <MuteButton />
+            </div>
+          )}
+
           {game.phase === 'login' && <LoginScreen onAuthenticate={game.login} />}
 
           {game.phase === 'activating' && (
@@ -138,13 +180,20 @@ export default function App() {
                 <span className="brand">AURA</span>
                 <span className="brand-sub">ADAPTIVE UNIFIED RESPONSE ARCHITECTURE</span>
                 <SurveillanceTag />
-                <button className="nav-btn" onClick={() => navigate('home')} title="Portal menu">
-                  MENU
-                </button>
-                <MuteButton />
-                <button className="reset-btn" onClick={handleReset} title="Reset session">
-                  {confirmReset ? 'CONFIRM RESET' : 'RESET'}
-                </button>
+                {/* Actions wrap to their own full-width row on phones (see .topbar-actions). */}
+                <div className="topbar-actions">
+                  <button className="nav-btn" onClick={leaveToMenu} title="Back to menu — progress is kept">
+                    ◂ MENU
+                  </button>
+                  <MuteButton />
+                  <button
+                    className={`reset-btn ${confirmReset ? 'armed' : ''}`}
+                    onClick={handleReset}
+                    title="Reset session"
+                  >
+                    {confirmReset ? 'CONFIRM?' : 'RESET'}
+                  </button>
+                </div>
               </header>
 
               <StatusBar
