@@ -1,21 +1,28 @@
 import officeOpen from '../assets/feed/office-open.jpg'
+import officeDesk from '../assets/feed/office-desk.jpg'
 
-export type FeedVariant = 'photo' | 'scene'
+export type FeedVariant = 'photo-open' | 'photo-desk' | 'scene'
+
+/** Real (royalty-free, Pexels) empty-office photos, keyed by variant. */
+const PHOTOS: Partial<Record<FeedVariant, string>> = {
+  'photo-open': officeOpen,
+  'photo-desk': officeDesk,
+}
 
 /**
- * A "live" CCTV view for an active camera. Two visual versions:
- *  - `photo`: a real (royalty-free, Pexels) empty-office photo pushed through a
- *    cold CCTV look (desaturate + green tint + grain + scanlines + vignette) so
- *    it reads as low-light surveillance of an empty room.
- *  - `scene`: a synthesized SVG office (open-plan desks in perspective, a
- *    flickering monitor) — lightweight and offline, a visibly different feed.
+ * A "live" CCTV view for an active camera. Visual versions:
+ *  - `photo-*`: a real empty-office photo pushed through a cold CCTV look
+ *    (desaturate + green tint + grain + scanlines + vignette) so it reads as
+ *    low-light surveillance of an empty room.
+ *  - `scene`: a synthesized SVG office (kept for reuse; not currently assigned).
  * Grain/scanlines/vignette overlays + the REC/LIVE/timestamp OSD are shared.
  */
 export function OfficeFeed({ variant }: { variant: FeedVariant }) {
+  const photo = PHOTOS[variant]
   return (
     <div className={`feed feed-${variant}`}>
-      {variant === 'photo' ? (
-        <img className="feed-img" src={officeOpen} alt="" aria-hidden="true" draggable={false} />
+      {photo ? (
+        <img className="feed-img" src={photo} alt="" aria-hidden="true" draggable={false} />
       ) : (
         <OfficeScene />
       )}
