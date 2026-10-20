@@ -101,10 +101,11 @@ Two mechanics beyond plain verification:
   timer + accelerating progress bar + draining accounts; self-animating, shown only while the
   countdown is active), `MuteButton` (topbar; toggles all synthesized audio), `SurveillanceTag`
   (quiet `● REC — MONITORED` indicator rendered on home/portal/terminal for the "being watched"
-  feel), `OfficeFeed` (the `live` camera feeds, two versions via a `variant` prop: `photo` = a
-  bundled royalty-free empty-office image at `src/assets/feed/office-open.jpg` (Pexels, free license)
-  pushed through a cold CCTV filter + scanlines/vignette/grain; `scene` = a synthesized perspective
-  open-plan SVG. Which camera uses which is set by `Camera.feed` in `portalContent.ts`).
+  feel), `OfficeFeed` (the `live` camera feeds, via a `variant` prop: `photo-open` / `photo-desk` =
+  two bundled royalty-free empty-office photos at `src/assets/feed/*.jpg` (Pexels, free license)
+  each pushed through a cold CCTV filter + scanlines/vignette/grain/slow pan; `scene` = a synthesized
+  perspective open-plan SVG, kept for reuse but not currently assigned. Which camera uses which is
+  set by `Camera.feed` in `portalContent.ts` — currently both live cameras use photos).
 - `src/useViewportHeight.ts` — mirrors `visualViewport` into the `--app-height` custom property.
   `100%`/`100vh`/`100dvh` all fail to account for the iOS keyboard, which would leave the
   terminal's bottom-anchored input underneath it.
