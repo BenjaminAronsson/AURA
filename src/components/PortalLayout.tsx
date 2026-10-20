@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { PortalNav } from './PortalNav'
+import { SurveillanceTag } from './SurveillanceTag'
 import type { View } from '../App'
 
 interface Props {
@@ -18,6 +19,7 @@ export function PortalLayout({ title, active, inProgress, onNavigate, onEnter, c
       <header className="portal-header">
         <span className="brand">AURA</span>
         <span className="portal-title">{title}</span>
+        <SurveillanceTag />
       </header>
 
       <PortalNav

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CAMERAS, FOOTAGE_NOTE } from '../game/portalContent'
+import { OfficeFeed } from './OfficeFeed'
 
 /** Camera-OSD timestamp, ticking, Stockholm time. */
 function useOsdTime(): string {
@@ -22,19 +23,22 @@ export function FootagePage() {
         {CAMERAS.map((cam) => (
           <figure key={cam.id} className={`camera-tile camera-${cam.state}`}>
             <div className="camera-screen">
+              {cam.state === 'live' && <OfficeFeed variant={cam.feed ?? 'scene'} />}
               {cam.state === 'static' && <div className="camera-noise" aria-hidden="true" />}
               <div className="camera-osd">
                 <span className="camera-id">{cam.id}</span>
                 <span className="camera-rec" aria-hidden="true">
-                  ● REC
+                  ● {cam.state === 'live' ? 'LIVE' : 'REC'}
                 </span>
               </div>
-              <div className="camera-center">
-                {cam.state === 'lost' ? 'SIGNAL LOST' : 'NO VIDEO'}
-                <span className="camera-sub">
-                  {cam.state === 'lost' ? 'FEED DISCONNECTED' : 'DECODER OFFLINE'}
-                </span>
-              </div>
+              {cam.state !== 'live' && (
+                <div className="camera-center">
+                  {cam.state === 'lost' ? 'SIGNAL LOST' : 'NO VIDEO'}
+                  <span className="camera-sub">
+                    {cam.state === 'lost' ? 'FEED DISCONNECTED' : 'DECODER OFFLINE'}
+                  </span>
+                </div>
+              )}
               <div className="camera-stamp">{stamp}</div>
             </div>
             <figcaption className="camera-name">{cam.name}</figcaption>

@@ -29,6 +29,7 @@ import {
   isQuery,
   matchRejection,
   normalize,
+  normalizeAnswer,
 } from './engine'
 import { audio } from './audio'
 
@@ -50,10 +51,10 @@ interface SaveData {
   countdownDeadline: number | null
 }
 
-/** Validate a value against a list of accepted answers (case/space-insensitive). */
+/** Validate a value against accepted credentials (case/space/dash-insensitive). */
 function matchesAny(accept: string[], input: string): boolean {
-  const n = normalize(input)
-  return n.length > 0 && accept.some((a) => normalize(a) === n)
+  const n = normalizeAnswer(input)
+  return n.length > 0 && accept.some((a) => normalizeAnswer(a) === n)
 }
 
 function stageIntroLines(stage: Stage): LogLine[] {
