@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AuraCore } from './AuraCore'
 import { PortalNav } from './PortalNav'
+import { SurveillanceTag } from './SurveillanceTag'
 import { HOME } from '../game/portalContent'
 import type { View } from '../App'
 
@@ -42,9 +43,14 @@ export function HomeScreen({ inProgress, onEnter, onNavigate }: Props) {
             CORE <b className="alert">DORMANT</b>
           </span>
           <span className="home-status-item">
+            SURVEILLANCE <b className="alert">ACTIVE</b>
+          </span>
+          <span className="home-status-item">
             {clock} <span className="home-status-tz">CET</span>
           </span>
         </div>
+
+        <SurveillanceTag />
 
         <p className="home-tagline">{HOME.tagline}</p>
 

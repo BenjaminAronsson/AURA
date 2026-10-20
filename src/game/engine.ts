@@ -35,16 +35,31 @@ export const FLAT_STEPS: FlatStep[] = STAGES.flatMap((stage) =>
 
 export const TOTAL_STEPS = FLAT_STEPS.length
 
-/** Lowercase, trim, collapse internal whitespace. Used for all comparisons. */
+/** Lowercase, trim, collapse internal whitespace. Used for free-text matching. */
 export function normalize(input: string): string {
   return input.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+/**
+ * Loose normalization for ANSWERS and CREDENTIALS only: lowercase and strip
+ * everything that isn't a letter or digit. This makes case, spaces and dashes
+ * irrelevant, so a single canonical `accept` value matches every sensible form
+ * players type on a phone under pressure — e.g. "ORION-SIGMA-RK",
+ * "orion sigma rk" and "orionsigmark" all collapse to "orionsigmark", and
+ * "FERRARI F40" / "ferrarif40" both collapse to "ferrarif40".
+ *
+ * Never use this for free-text (`normalize`/`answerFreeText`), which needs word
+ * boundaries so "can you" doesn't become "canyou".
+ */
+export function normalizeAnswer(input: string): string {
+  return input.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
 /** True when `input` matches any accepted answer for the step. */
 export function checkAnswer(step: Step, input: string): boolean {
-  const n = normalize(input)
+  const n = normalizeAnswer(input)
   if (!n) return false
-  return step.accept.some((a) => normalize(a) === n)
+  return step.accept.some((a) => normalizeAnswer(a) === n)
 }
 
 /**
@@ -52,10 +67,10 @@ export function checkAnswer(step: Step, input: string): boolean {
  * Checked before the generic rejection — powers Step 4's `AURA1` trap.
  */
 export function matchRejection(step: Step, input: string): string[] | null {
-  const n = normalize(input)
+  const n = normalizeAnswer(input)
   if (!n || !step.rejections) return null
   for (const r of step.rejections) {
-    if (r.match.some((m) => normalize(m) === n)) return r.lines
+    if (r.match.some((m) => normalizeAnswer(m) === n)) return r.lines
   }
   return null
 }

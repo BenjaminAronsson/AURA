@@ -424,18 +424,22 @@ Prefer making these easy to change:
 
 ## Fixed values
 
+All codes and answers are matched **case-insensitively and ignoring spaces and
+dashes**, so e.g. `ORION-SIGMA-RK`, `orion sigma rk` and `orionsigmark` are all
+accepted, as are `FERRARI F40` / `ferrarif40` and `RED BULL` / `redbull`.
+
 ```text
 USER ID: ELNOR0417
-ACTIVATION KEY: ORION-17-NX
+ACTIVATION KEY: ORION-SIGMA-RK
 
 SECURITY QUESTION 1: What is your daughter’s first name?
 ANSWER 1: ALMA
 
 SECURITY QUESTION 2: What is your dream car?
-ANSWER 2: HONDANSX
+ANSWER 2: FERRARI F40  (also FERRARIF40)
 
 SECURITY QUESTION 3: What is your favourite drink?
-ANSWER 3: REDBULL
+ANSWER 3: REDBULL  (also RED BULL)
 
 CONTINUITY TOKEN: 7314
 

@@ -39,22 +39,25 @@ export interface Camera {
   id: string
   name: string
   /** 'lost' = disconnected/unplugged; 'static' = dead signal noise. */
-  state: 'lost' | 'static'
+  /** 'lost' = disconnected; 'static' = dead signal noise; 'live' = active CCTV feed. */
+  state: 'lost' | 'static' | 'live'
+  /** For live cameras: which visual version ('photo' = real image, 'scene' = SVG). */
+  feed?: 'photo' | 'scene'
 }
 
 export const CAMERAS: Camera[] = [
   { id: 'C01', name: 'SERVER ROOM', state: 'static' },
   { id: 'C02', name: 'MAIN ENTRANCE', state: 'lost' },
-  { id: 'C03', name: 'DEVELOPER FLOOR', state: 'lost' },
+  { id: 'C03', name: 'DEVELOPER FLOOR', state: 'live', feed: 'photo' },
   { id: 'C04', name: 'RECEPTION', state: 'static' },
   { id: 'C05', name: 'PARKING B2', state: 'lost' },
   { id: 'C06', name: 'ARCHIVE', state: 'lost' },
-  { id: 'C07', name: 'EXEC CORRIDOR', state: 'static' },
+  { id: 'C07', name: 'EXEC CORRIDOR', state: 'live', feed: 'scene' },
   { id: 'C08', name: 'LOADING BAY', state: 'lost' },
 ]
 
 export const FOOTAGE_NOTE =
-  'All feeds offline since facility lockdown. Camera subsystem awaiting operator re-authentication.'
+  'Most feeds offline since facility lockdown. Two interior feeds remain active on the monitoring subsystem.'
 
 /* ---- Emails (deliberately useless) ----------------------------------- */
 

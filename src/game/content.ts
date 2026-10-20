@@ -6,10 +6,11 @@
  * for "The Breach" four-step sequence (operator: Elias Norberg), per
  * AURA_Four_Step_Game_Logic.md.
  *
- * Matching is case-insensitive and whitespace-insensitive (see engine.normalize).
- * A step is solved when the player's input matches ANY string in `accept`.
- * Answer variants (e.g. "HONDA NSX" / "HONDANSX") are supported by listing both
- * forms in `accept`.
+ * Matching ignores case, spaces AND dashes (see engine.normalizeAnswer), so a
+ * single canonical `accept` value covers every form players type — e.g.
+ * "FERRARI F40" also matches "ferrarif40", and "ORION-SIGMA-RK" also matches
+ * "orion sigma rk" / "orionsigmark". A step is solved when the player's input
+ * matches ANY string in `accept`.
  */
 
 /* ------------------------------------------------------------------ */
@@ -113,10 +114,11 @@ export const LOGIN = {
   submit: 'AUTHENTICATE',
   working: 'VERIFYING ...',
   denied: 'AUTHENTICATION FAILED — INVALID OPERATOR CREDENTIALS.',
-  /** Accepted User ID values (normalized before compare). */
+  /** Accepted User ID values (case/space/dash-insensitive via normalizeAnswer). */
   userIdAccept: ['ELNOR0417'],
-  /** Accepted Activation Key values (normalized before compare). */
-  keyAccept: ['ORION-17-NX'],
+  /** Accepted Activation Key. Matched loosely, so dashes/spaces/caps don't matter
+   *  (ORION-SIGMA-RK, orion sigma rk, orionsigmark all pass). */
+  keyAccept: ['ORION-SIGMA-RK'],
 }
 
 /* ------------------------------------------------------------------ */
@@ -172,7 +174,7 @@ export const STAGES: Stage[] = [
         // terminal. `accept` mirrors the activation key for completeness.
         id: 'auth.login',
         prompt: 'ENTER OPERATOR CREDENTIALS:',
-        accept: ['ORION-17-NX'],
+        accept: ['ORION-SIGMA-RK'],
         onSuccess: ['OPERATOR AUTHENTICATED.'],
         accessLevel: 1,
         hint: 'Operator credentials are reconstructed from physical clues across the rooms.',
@@ -198,7 +200,7 @@ export const STAGES: Stage[] = [
       {
         id: 'id.q2',
         prompt: 'SECURITY QUESTION 2 — What is your dream car?',
-        accept: ['HONDANSX', 'HONDA NSX'],
+        accept: ['FERRARI F40'],
         onSuccess: ['IDENTITY RESPONSE VERIFIED'],
         onReject: 'IDENTITY RESPONSE REJECTED',
         hint: 'A make and a model. Elias talked about it often.',

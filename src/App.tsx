@@ -6,6 +6,7 @@ import { LoginScreen } from './components/LoginScreen'
 import { ActivationScreen } from './components/ActivationScreen'
 import { EndScreen } from './components/EndScreen'
 import { MuteButton } from './components/MuteButton'
+import { SurveillanceTag } from './components/SurveillanceTag'
 import { HomeScreen } from './components/HomeScreen'
 import { PortalLayout } from './components/PortalLayout'
 import { FootagePage } from './components/FootagePage'
@@ -136,6 +137,7 @@ export default function App() {
               <header className="topbar">
                 <span className="brand">AURA</span>
                 <span className="brand-sub">ADAPTIVE UNIFIED RESPONSE ARCHITECTURE</span>
+                <SurveillanceTag />
                 <button className="nav-btn" onClick={() => navigate('home')} title="Portal menu">
                   MENU
                 </button>

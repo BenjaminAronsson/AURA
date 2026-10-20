@@ -59,9 +59,12 @@ Two mechanics beyond plain verification:
   `preamble`, terse `prompt`, `accept`/`onSuccess[]`/`onReject`, optional `rejections` and
   `startsCountdown`), `LOGIN` copy + credential `accept` lists, `buildActivationLines()`,
   `buildEndingLines()`, `END_BANNER`, scripted `FREE_TEXT`. Edit puzzles and all on-screen copy here.
-- `src/game/engine.ts` — pure, React-free logic: `normalize`/`checkAnswer` (case/space-insensitive),
-  `matchRejection` (special wrong-answer lookup), `answerFreeText` (whole-word keyword matching so
-  short words like "hi" don't match inside "which"), flat-step progression, `accessLevelAt`.
+- `src/game/engine.ts` — pure, React-free logic: `normalize` (free-text), `normalizeAnswer`
+  (answers/credentials — lowercase + strip all non-alphanumerics, so case/spaces/dashes never
+  matter; one canonical `accept` value covers every form, e.g. `FERRARI F40`/`ferrarif40`,
+  `ORION-SIGMA-RK`/`orion sigma rk`), `checkAnswer`/`matchRejection` (both use `normalizeAnswer`),
+  `answerFreeText` (whole-word keyword matching so short words like "hi" don't match inside "which"),
+  flat-step progression, `accessLevelAt`.
 - `src/game/useGame.ts` — the hook: owns `phase`, `operatorId`, `countdownDeadline`, `login()`,
   `finishActivation()`, `submit()`, `reset()`. `login()` checks both credentials. `submit()` routes
   input (answer vs. free-text vs. `help`/`status`/`repeat`/`hint`), applies `matchRejection` before
@@ -96,7 +99,12 @@ Two mechanics beyond plain verification:
   `LoginScreen`, `ActivationScreen`, `Terminal` (typewriter log + input, submit on Enter,
   input locked while typing), `StatusBar`, `TransferMonitor` (Step-4 blinking red danger triangle +
   timer + accelerating progress bar + draining accounts; self-animating, shown only while the
-  countdown is active), `MuteButton` (topbar; toggles all synthesized audio).
+  countdown is active), `MuteButton` (topbar; toggles all synthesized audio), `SurveillanceTag`
+  (quiet `● REC — MONITORED` indicator rendered on home/portal/terminal for the "being watched"
+  feel), `OfficeFeed` (the `live` camera feeds, two versions via a `variant` prop: `photo` = a
+  bundled royalty-free empty-office image at `src/assets/feed/office-open.jpg` (Pexels, free license)
+  pushed through a cold CCTV filter + scanlines/vignette/grain; `scene` = a synthesized perspective
+  open-plan SVG. Which camera uses which is set by `Camera.feed` in `portalContent.ts`).
 - `src/useViewportHeight.ts` — mirrors `visualViewport` into the `--app-height` custom property.
   `100%`/`100vh`/`100dvh` all fail to account for the iOS keyboard, which would leave the
   terminal's bottom-anchored input underneath it.
